@@ -19,6 +19,8 @@ export type Post = {
   publishedAt?: string;
 };
 
+export type PostEditInput = Pick<Post, "title" | "summary" | "content">;
+
 type CreatePostInput = {
   title: string;
   summary: string;
@@ -36,11 +38,7 @@ type PostResponse = {
   post: Post;
 };
 
-type UpdatePostInput = {
-  title: string;
-  summary: string;
-  content: string;
-};
+type UpdatePostInput = Partial<PostEditInput>;
 
 type UpdatePostResponse = {
   post: Post;
@@ -98,12 +96,12 @@ export async function createDraftPost(
   return body.post;
 }
 
-export async function updateDraftPost(
+export async function updatePost(
   postId: string,
   input: UpdatePostInput,
   signal?: AbortSignal,
 ) {
-  const response = await fetch(`/api/posts/${postId}`, {
+  const response = await fetch(`/api/posts/${encodeURIComponent(postId)}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -113,7 +111,7 @@ export async function updateDraftPost(
   });
 
   if (!response.ok) {
-    throw new Error(await readApiError(response, "Failed to update draft."));
+    throw new Error(await readApiError(response, "Failed to update post."));
   }
 
   const body = (await response.json()) as UpdatePostResponse;

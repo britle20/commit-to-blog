@@ -1,10 +1,17 @@
 import { formatDate } from "../lib/dates";
-import type { Post } from "../lib/posts";
+import type { Post, PostEditInput } from "../lib/posts";
 
 type PostDetailProps = {
   post: Post | null;
   loading: boolean;
   error: string | null;
+  editDraft: PostEditInput | null;
+  saving: boolean;
+  saveError: string | null;
+  onStartEdit: () => void;
+  onEditChange: (field: keyof PostEditInput, value: string) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
   onRetry: () => void;
   onClose: () => void;
 };
@@ -15,13 +22,41 @@ function getStatusClassName(status: Post["status"]) {
     : "bg-status-warning-subtle text-status-warning-text";
 }
 
+function FieldLabel({
+  htmlFor,
+  children,
+}: {
+  htmlFor: string;
+  children: string;
+}) {
+  return (
+    <label htmlFor={htmlFor} className="text-sm font-medium text-primary">
+      {children}
+    </label>
+  );
+}
+
 export function PostDetail({
   post,
   loading,
   error,
+  editDraft,
+  saving,
+  saveError,
+  onStartEdit,
+  onEditChange,
+  onCancelEdit,
+  onSaveEdit,
   onRetry,
   onClose,
 }: PostDetailProps) {
+  const isEditing = post !== null && editDraft !== null;
+  const canSaveEdit =
+    editDraft !== null &&
+    editDraft.title.trim() !== "" &&
+    editDraft.summary.trim() !== "" &&
+    editDraft.content.trim() !== "";
+
   return (
     <section className="rounded-lg border border-default bg-surface shadow-elevated">
       <div className="flex flex-col gap-4 border-b border-default px-6 py-5 text-left md:flex-row md:items-start md:justify-between">
@@ -38,13 +73,26 @@ export function PostDetail({
         </div>
 
         {post ? (
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex shrink-0 items-center justify-center rounded-md bg-action-secondary px-3 py-2 text-sm font-medium text-action-secondary-text hover:bg-action-secondary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            Close
-          </button>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            {!isEditing ? (
+              <button
+                type="button"
+                disabled={loading || saving}
+                onClick={onStartEdit}
+                className="inline-flex items-center justify-center rounded-md bg-action-primary px-3 py-2 text-sm font-medium text-action-primary-text hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              >
+                Edit
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={saving}
+              onClick={onClose}
+              className="inline-flex items-center justify-center rounded-md bg-action-secondary px-3 py-2 text-sm font-medium text-action-secondary-text hover:bg-action-secondary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            >
+              Close
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -75,6 +123,109 @@ export function PostDetail({
           <p className="text-sm text-secondary">
             Choose a saved post from the list to open its detail view.
           </p>
+        ) : isEditing ? (
+          <form
+            className="grid gap-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSaveEdit();
+            }}
+          >
+            {loading ? (
+              <p
+                role="status"
+                aria-live="polite"
+                className="rounded-lg bg-surface-muted px-4 py-3 text-sm text-secondary"
+              >
+                Refreshing post details...
+              </p>
+            ) : null}
+
+            <div className="grid gap-2">
+              <FieldLabel htmlFor="saved-post-title">Title</FieldLabel>
+              <input
+                id="saved-post-title"
+                name="title"
+                type="text"
+                value={editDraft.title}
+                disabled={saving}
+                onChange={(event) =>
+                  onEditChange("title", event.currentTarget.value)
+                }
+                className="min-h-11 rounded-md border border-default bg-surface px-3 py-2 text-sm text-primary shadow-none outline-none transition placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60 focus:border-focus focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <FieldLabel htmlFor="saved-post-summary">Summary</FieldLabel>
+              <textarea
+                id="saved-post-summary"
+                name="summary"
+                value={editDraft.summary}
+                disabled={saving}
+                rows={4}
+                onChange={(event) =>
+                  onEditChange("summary", event.currentTarget.value)
+                }
+                className="min-h-28 resize-y rounded-md border border-default bg-surface px-3 py-2 text-sm text-primary shadow-none outline-none transition placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60 focus:border-focus focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <FieldLabel htmlFor="saved-post-content">Content</FieldLabel>
+              <textarea
+                id="saved-post-content"
+                name="content"
+                value={editDraft.content}
+                disabled={saving}
+                rows={14}
+                onChange={(event) =>
+                  onEditChange("content", event.currentTarget.value)
+                }
+                className="min-h-80 resize-y rounded-md border border-default bg-surface px-3 py-2 font-mono text-sm text-primary shadow-none outline-none transition placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60 focus:border-focus focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              />
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-lg border border-muted bg-surface-muted px-4 py-3 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm">
+                {saveError ? (
+                  <p role="alert" className="text-status-danger-text">
+                    {saveError}
+                  </p>
+                ) : saving ? (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="text-secondary"
+                  >
+                    Saving changes...
+                  </p>
+                ) : (
+                  <p className="text-secondary">
+                    Update the saved title, summary, or content.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={onCancelEdit}
+                  className="inline-flex items-center justify-center rounded-md bg-action-secondary px-3 py-2 text-sm font-medium text-action-secondary-text hover:bg-action-secondary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!canSaveEdit || saving}
+                  className="inline-flex items-center justify-center rounded-md bg-action-primary px-4 py-2 text-sm font-medium text-action-primary-text hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                >
+                  {saving ? "Saving..." : "Save changes"}
+                </button>
+              </div>
+            </div>
+          </form>
         ) : (
           <div className="grid gap-5">
             {loading ? (

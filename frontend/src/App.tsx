@@ -20,8 +20,9 @@ import {
   createDraftPost,
   fetchPost,
   fetchPosts,
-  updateDraftPost,
+  updatePost,
   type Post,
+  type PostEditInput,
 } from "./lib/posts";
 import {
   fetchBranches,
@@ -80,6 +81,9 @@ function App() {
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [postDetailReloadKey, setPostDetailReloadKey] = useState(0);
+  const [postEditDraft, setPostEditDraft] = useState<PostEditInput | null>(
+    null,
+  );
   const [hasUnsavedDraftChanges, setHasUnsavedDraftChanges] = useState(false);
   const [loading, setLoading] = useState(true);
   const [branchLoading, setBranchLoading] = useState(false);
@@ -88,6 +92,7 @@ function App() {
   const [saveLoading, setSaveLoading] = useState(false);
   const [postsLoading, setPostsLoading] = useState(true);
   const [postDetailLoading, setPostDetailLoading] = useState(false);
+  const [postEditSaving, setPostEditSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [branchError, setBranchError] = useState<string | null>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
@@ -95,8 +100,10 @@ function App() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [postsError, setPostsError] = useState<string | null>(null);
   const [postDetailError, setPostDetailError] = useState<string | null>(null);
+  const [postEditError, setPostEditError] = useState<string | null>(null);
   const draftControllerRef = useRef<AbortController | null>(null);
   const saveControllerRef = useRef<AbortController | null>(null);
+  const postEditControllerRef = useRef<AbortController | null>(null);
 
   const clearDraftState = useCallback(() => {
     draftControllerRef.current?.abort();
@@ -116,6 +123,7 @@ function App() {
     return () => {
       draftControllerRef.current?.abort();
       saveControllerRef.current?.abort();
+      postEditControllerRef.current?.abort();
     };
   }, []);
 
@@ -505,7 +513,7 @@ function App() {
             },
             controller.signal,
           )
-        : updateDraftPost(
+        : updatePost(
             targetDraftId,
             {
               title: generatedDraft.title,
@@ -553,10 +561,15 @@ function App() {
   }
 
   function openPostDetail(post: Post) {
+    postEditControllerRef.current?.abort();
+    postEditControllerRef.current = null;
     setSelectedPostId(post.id);
     setSelectedPost(post);
     setPostDetailLoading(true);
     setPostDetailError(null);
+    setPostEditDraft(null);
+    setPostEditSaving(false);
+    setPostEditError(null);
     setPostDetailReloadKey((currentKey) => currentKey + 1);
   }
 
@@ -571,10 +584,104 @@ function App() {
   }
 
   function closePostDetail() {
+    postEditControllerRef.current?.abort();
+    postEditControllerRef.current = null;
     setSelectedPostId(null);
     setSelectedPost(null);
     setPostDetailLoading(false);
     setPostDetailError(null);
+    setPostEditDraft(null);
+    setPostEditSaving(false);
+    setPostEditError(null);
+  }
+
+  function startPostEdit() {
+    if (selectedPost === null || postEditSaving) {
+      return;
+    }
+
+    setPostEditDraft({
+      title: selectedPost.title,
+      summary: selectedPost.summary,
+      content: selectedPost.content,
+    });
+    setPostEditError(null);
+  }
+
+  function updatePostEditField(field: keyof PostEditInput, value: string) {
+    setPostEditDraft((currentDraft) =>
+      currentDraft === null
+        ? currentDraft
+        : {
+            ...currentDraft,
+            [field]: value,
+          },
+    );
+    setPostEditError(null);
+  }
+
+  function cancelPostEdit() {
+    if (postEditSaving) {
+      return;
+    }
+
+    setPostEditDraft(null);
+    setPostEditError(null);
+  }
+
+  function savePostEdit() {
+    if (
+      selectedPost === null ||
+      postEditDraft === null ||
+      postEditSaving ||
+      postEditDraft.title.trim() === "" ||
+      postEditDraft.summary.trim() === "" ||
+      postEditDraft.content.trim() === ""
+    ) {
+      return;
+    }
+
+    setPostEditSaving(true);
+    setPostEditError(null);
+
+    const controller = new AbortController();
+    postEditControllerRef.current = controller;
+
+    void updatePost(selectedPost.id, postEditDraft, controller.signal)
+      .then((post) => {
+        if (!controller.signal.aborted) {
+          setSelectedPost(post);
+          setPosts((currentPosts) => upsertPost(currentPosts, post));
+          setSavedDraft((currentDraft) =>
+            currentDraft?.id === post.id ? post : currentDraft,
+          );
+          setPostDetailError(null);
+
+          if (savedDraft?.id === post.id && !hasUnsavedDraftChanges) {
+            setGeneratedDraft({
+              title: post.title,
+              summary: post.summary,
+              content: post.content,
+            });
+          }
+
+          setPostEditDraft(null);
+          setPostEditError(null);
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) {
+          setPostEditError(
+            getErrorMessage(requestError, "Failed to update post."),
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setPostEditSaving(false);
+          postEditControllerRef.current = null;
+        }
+      });
   }
 
   return (
@@ -842,6 +949,13 @@ function App() {
             post={selectedPost}
             loading={postDetailLoading}
             error={postDetailError}
+            editDraft={postEditDraft}
+            saving={postEditSaving}
+            saveError={postEditError}
+            onStartEdit={startPostEdit}
+            onEditChange={updatePostEditField}
+            onCancelEdit={cancelPostEdit}
+            onSaveEdit={savePostEdit}
             onRetry={retryPostDetail}
             onClose={closePostDetail}
           />
