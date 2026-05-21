@@ -22,6 +22,7 @@ import {
   fetchPost,
   fetchPosts,
   updatePost,
+  updatePostStatus,
   type Post,
   type PostEditInput,
 } from "./lib/posts";
@@ -96,6 +97,7 @@ function App() {
   const [postDetailLoading, setPostDetailLoading] = useState(false);
   const [postEditSaving, setPostEditSaving] = useState(false);
   const [postDeleting, setPostDeleting] = useState(false);
+  const [postStatusUpdating, setPostStatusUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [branchError, setBranchError] = useState<string | null>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
@@ -105,10 +107,12 @@ function App() {
   const [postDetailError, setPostDetailError] = useState<string | null>(null);
   const [postEditError, setPostEditError] = useState<string | null>(null);
   const [postDeleteError, setPostDeleteError] = useState<string | null>(null);
+  const [postStatusError, setPostStatusError] = useState<string | null>(null);
   const draftControllerRef = useRef<AbortController | null>(null);
   const saveControllerRef = useRef<AbortController | null>(null);
   const postEditControllerRef = useRef<AbortController | null>(null);
   const postDeleteControllerRef = useRef<AbortController | null>(null);
+  const postStatusControllerRef = useRef<AbortController | null>(null);
 
   const clearDraftState = useCallback(() => {
     draftControllerRef.current?.abort();
@@ -130,6 +134,7 @@ function App() {
       saveControllerRef.current?.abort();
       postEditControllerRef.current?.abort();
       postDeleteControllerRef.current?.abort();
+      postStatusControllerRef.current?.abort();
     };
   }, []);
 
@@ -571,6 +576,8 @@ function App() {
     postEditControllerRef.current = null;
     postDeleteControllerRef.current?.abort();
     postDeleteControllerRef.current = null;
+    postStatusControllerRef.current?.abort();
+    postStatusControllerRef.current = null;
     setSelectedPostId(post.id);
     setSelectedPost(post);
     setPostDetailLoading(true);
@@ -581,6 +588,8 @@ function App() {
     setPostDeleteConfirming(false);
     setPostDeleting(false);
     setPostDeleteError(null);
+    setPostStatusUpdating(false);
+    setPostStatusError(null);
     setPostDetailReloadKey((currentKey) => currentKey + 1);
   }
 
@@ -599,6 +608,8 @@ function App() {
     postEditControllerRef.current = null;
     postDeleteControllerRef.current?.abort();
     postDeleteControllerRef.current = null;
+    postStatusControllerRef.current?.abort();
+    postStatusControllerRef.current = null;
     setSelectedPostId(null);
     setSelectedPost(null);
     setPostDetailLoading(false);
@@ -609,10 +620,17 @@ function App() {
     setPostDeleteConfirming(false);
     setPostDeleting(false);
     setPostDeleteError(null);
+    setPostStatusUpdating(false);
+    setPostStatusError(null);
   }
 
   function startPostEdit() {
-    if (selectedPost === null || postEditSaving || postDeleting) {
+    if (
+      selectedPost === null ||
+      postEditSaving ||
+      postDeleting ||
+      postStatusUpdating
+    ) {
       return;
     }
 
@@ -624,6 +642,7 @@ function App() {
     setPostEditError(null);
     setPostDeleteConfirming(false);
     setPostDeleteError(null);
+    setPostStatusError(null);
   }
 
   function updatePostEditField(field: keyof PostEditInput, value: string) {
@@ -639,7 +658,7 @@ function App() {
   }
 
   function cancelPostEdit() {
-    if (postEditSaving || postDeleting) {
+    if (postEditSaving || postDeleting || postStatusUpdating) {
       return;
     }
 
@@ -653,6 +672,7 @@ function App() {
       postEditDraft === null ||
       postEditSaving ||
       postDeleting ||
+      postStatusUpdating ||
       postEditDraft.title.trim() === "" ||
       postEditDraft.summary.trim() === "" ||
       postEditDraft.content.trim() === ""
@@ -704,7 +724,12 @@ function App() {
   }
 
   function requestPostDelete() {
-    if (selectedPost === null || postEditSaving || postDeleting) {
+    if (
+      selectedPost === null ||
+      postEditSaving ||
+      postDeleting ||
+      postStatusUpdating
+    ) {
       return;
     }
 
@@ -712,10 +737,11 @@ function App() {
     setPostEditError(null);
     setPostDeleteConfirming(true);
     setPostDeleteError(null);
+    setPostStatusError(null);
   }
 
   function cancelPostDelete() {
-    if (postDeleting) {
+    if (postDeleting || postStatusUpdating) {
       return;
     }
 
@@ -724,7 +750,12 @@ function App() {
   }
 
   function confirmPostDelete() {
-    if (selectedPost === null || postDeleting || postEditSaving) {
+    if (
+      selectedPost === null ||
+      postDeleting ||
+      postEditSaving ||
+      postStatusUpdating
+    ) {
       return;
     }
 
@@ -751,6 +782,8 @@ function App() {
           setPostEditError(null);
           setPostDeleteConfirming(false);
           setPostDeleteError(null);
+          setPostStatusUpdating(false);
+          setPostStatusError(null);
 
           setSavedDraft((currentDraft) =>
             currentDraft?.id === targetPostId ? null : currentDraft,
@@ -772,6 +805,54 @@ function App() {
         if (!controller.signal.aborted) {
           setPostDeleting(false);
           postDeleteControllerRef.current = null;
+        }
+      });
+  }
+
+  function publishPost() {
+    if (
+      selectedPost === null ||
+      selectedPost.status === "published" ||
+      postEditSaving ||
+      postDeleting ||
+      postStatusUpdating
+    ) {
+      return;
+    }
+
+    setPostStatusUpdating(true);
+    setPostStatusError(null);
+    setPostEditDraft(null);
+    setPostEditError(null);
+    setPostDeleteConfirming(false);
+    setPostDeleteError(null);
+
+    const controller = new AbortController();
+    postStatusControllerRef.current = controller;
+
+    void updatePostStatus(selectedPost.id, "published", controller.signal)
+      .then((post) => {
+        if (!controller.signal.aborted) {
+          setSelectedPost(post);
+          setPosts((currentPosts) => upsertPost(currentPosts, post));
+          setSavedDraft((currentDraft) =>
+            currentDraft?.id === post.id ? post : currentDraft,
+          );
+          setPostDetailError(null);
+          setPostStatusError(null);
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) {
+          setPostStatusError(
+            getErrorMessage(requestError, "Failed to publish post."),
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setPostStatusUpdating(false);
+          postStatusControllerRef.current = null;
         }
       });
   }
@@ -1047,6 +1128,8 @@ function App() {
             deleteConfirming={postDeleteConfirming}
             deleting={postDeleting}
             deleteError={postDeleteError}
+            statusUpdating={postStatusUpdating}
+            statusError={postStatusError}
             onStartEdit={startPostEdit}
             onEditChange={updatePostEditField}
             onCancelEdit={cancelPostEdit}
@@ -1054,6 +1137,7 @@ function App() {
             onRequestDelete={requestPostDelete}
             onCancelDelete={cancelPostDelete}
             onConfirmDelete={confirmPostDelete}
+            onPublish={publishPost}
             onRetry={retryPostDetail}
             onClose={closePostDetail}
           />

@@ -90,7 +90,7 @@ Related feature doc: [09 Saved and Published Post Views](features/09-saved-and-p
 - [x] Add post detail view.
 - [x] Add edit flow for saved posts.
 - [x] Add delete flow with confirmation.
-- [ ] Add status change from `draft` to `published`.
+- [x] Add status change from `draft` to `published`.
 - [ ] Show `published` posts in the service as readable blog posts.
 
 ### 10. Verification and Documentation Updates

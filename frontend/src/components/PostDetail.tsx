@@ -11,6 +11,8 @@ type PostDetailProps = {
   deleteConfirming: boolean;
   deleting: boolean;
   deleteError: string | null;
+  statusUpdating: boolean;
+  statusError: string | null;
   onStartEdit: () => void;
   onEditChange: (field: keyof PostEditInput, value: string) => void;
   onCancelEdit: () => void;
@@ -18,6 +20,7 @@ type PostDetailProps = {
   onRequestDelete: () => void;
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
+  onPublish: () => void;
   onRetry: () => void;
   onClose: () => void;
 };
@@ -52,6 +55,8 @@ export function PostDetail({
   deleteConfirming,
   deleting,
   deleteError,
+  statusUpdating,
+  statusError,
   onStartEdit,
   onEditChange,
   onCancelEdit,
@@ -59,6 +64,7 @@ export function PostDetail({
   onRequestDelete,
   onCancelDelete,
   onConfirmDelete,
+  onPublish,
   onRetry,
   onClose,
 }: PostDetailProps) {
@@ -87,11 +93,23 @@ export function PostDetail({
         {post ? (
           <div className="flex shrink-0 flex-wrap gap-2">
             {!isEditing && !deleteConfirming ? (
+              post.status === "draft" ? (
+                <button
+                  type="button"
+                  disabled={loading || saving || deleting || statusUpdating}
+                  onClick={onPublish}
+                  className="inline-flex items-center justify-center rounded-md bg-action-primary px-3 py-2 text-sm font-medium text-action-primary-text hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                >
+                  {statusUpdating ? "Publishing..." : "Publish"}
+                </button>
+              ) : null
+            ) : null}
+            {!isEditing && !deleteConfirming ? (
               <button
                 type="button"
-                disabled={loading || saving || deleting}
+                disabled={loading || saving || deleting || statusUpdating}
                 onClick={onStartEdit}
-                className="inline-flex items-center justify-center rounded-md bg-action-primary px-3 py-2 text-sm font-medium text-action-primary-text hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                className="inline-flex items-center justify-center rounded-md bg-action-secondary px-3 py-2 text-sm font-medium text-action-secondary-text hover:bg-action-secondary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
               >
                 Edit
               </button>
@@ -99,7 +117,7 @@ export function PostDetail({
             {!isEditing && !deleteConfirming ? (
               <button
                 type="button"
-                disabled={loading || saving || deleting}
+                disabled={loading || saving || deleting || statusUpdating}
                 onClick={onRequestDelete}
                 className="inline-flex items-center justify-center rounded-md bg-action-danger px-3 py-2 text-sm font-medium text-action-danger-text hover:bg-action-danger-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
               >
@@ -108,7 +126,7 @@ export function PostDetail({
             ) : null}
             <button
               type="button"
-              disabled={saving || deleting}
+              disabled={saving || deleting || statusUpdating}
               onClick={onClose}
               className="inline-flex items-center justify-center rounded-md bg-action-secondary px-3 py-2 text-sm font-medium text-action-secondary-text hover:bg-action-secondary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
             >
@@ -301,6 +319,19 @@ export function PostDetail({
                 className="rounded-lg bg-surface-muted px-4 py-3 text-sm text-secondary"
               >
                 Refreshing post details...
+              </p>
+            ) : null}
+            {statusError ? (
+              <p role="alert" className="text-sm text-status-danger-text">
+                {statusError}
+              </p>
+            ) : statusUpdating ? (
+              <p
+                role="status"
+                aria-live="polite"
+                className="rounded-lg bg-surface-muted px-4 py-3 text-sm text-secondary"
+              >
+                Publishing post...
               </p>
             ) : null}
 

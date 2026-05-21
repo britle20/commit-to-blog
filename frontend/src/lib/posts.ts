@@ -44,6 +44,10 @@ type UpdatePostResponse = {
   post: Post;
 };
 
+type UpdatePostStatusResponse = {
+  post: Post;
+};
+
 type ListPostsResponse = {
   posts: Post[];
 };
@@ -128,4 +132,32 @@ export async function deletePost(postId: string, signal?: AbortSignal) {
   if (!response.ok) {
     throw new Error(await readApiError(response, "Failed to delete post."));
   }
+}
+
+export async function updatePostStatus(
+  postId: string,
+  status: PostStatus,
+  signal?: AbortSignal,
+) {
+  const response = await fetch(
+    `/api/posts/${encodeURIComponent(postId)}/status`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status }),
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(response, "Failed to update post status."),
+    );
+  }
+
+  const body = (await response.json()) as UpdatePostStatusResponse;
+
+  return body.post;
 }
