@@ -8,10 +8,16 @@ type PostDetailProps = {
   editDraft: PostEditInput | null;
   saving: boolean;
   saveError: string | null;
+  deleteConfirming: boolean;
+  deleting: boolean;
+  deleteError: string | null;
   onStartEdit: () => void;
   onEditChange: (field: keyof PostEditInput, value: string) => void;
   onCancelEdit: () => void;
   onSaveEdit: () => void;
+  onRequestDelete: () => void;
+  onCancelDelete: () => void;
+  onConfirmDelete: () => void;
   onRetry: () => void;
   onClose: () => void;
 };
@@ -43,10 +49,16 @@ export function PostDetail({
   editDraft,
   saving,
   saveError,
+  deleteConfirming,
+  deleting,
+  deleteError,
   onStartEdit,
   onEditChange,
   onCancelEdit,
   onSaveEdit,
+  onRequestDelete,
+  onCancelDelete,
+  onConfirmDelete,
   onRetry,
   onClose,
 }: PostDetailProps) {
@@ -74,19 +86,29 @@ export function PostDetail({
 
         {post ? (
           <div className="flex shrink-0 flex-wrap gap-2">
-            {!isEditing ? (
+            {!isEditing && !deleteConfirming ? (
               <button
                 type="button"
-                disabled={loading || saving}
+                disabled={loading || saving || deleting}
                 onClick={onStartEdit}
                 className="inline-flex items-center justify-center rounded-md bg-action-primary px-3 py-2 text-sm font-medium text-action-primary-text hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
               >
                 Edit
               </button>
             ) : null}
+            {!isEditing && !deleteConfirming ? (
+              <button
+                type="button"
+                disabled={loading || saving || deleting}
+                onClick={onRequestDelete}
+                className="inline-flex items-center justify-center rounded-md bg-action-danger px-3 py-2 text-sm font-medium text-action-danger-text hover:bg-action-danger-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              >
+                Delete
+              </button>
+            ) : null}
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || deleting}
               onClick={onClose}
               className="inline-flex items-center justify-center rounded-md bg-action-secondary px-3 py-2 text-sm font-medium text-action-secondary-text hover:bg-action-secondary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
             >
@@ -123,6 +145,50 @@ export function PostDetail({
           <p className="text-sm text-secondary">
             Choose a saved post from the list to open its detail view.
           </p>
+        ) : deleteConfirming ? (
+          <div className="grid gap-5">
+            <div className="rounded-lg border border-status-danger-subtle bg-status-danger-subtle px-4 py-3">
+              <h3 className="text-base font-semibold text-status-danger-text">
+                Delete this post?
+              </h3>
+              <p className="mt-2 text-sm text-status-danger-text">
+                This will permanently remove "{post.title}" from saved posts.
+              </p>
+            </div>
+
+            {deleteError ? (
+              <p role="alert" className="text-sm text-status-danger-text">
+                {deleteError}
+              </p>
+            ) : deleting ? (
+              <p
+                role="status"
+                aria-live="polite"
+                className="text-sm text-secondary"
+              >
+                Deleting post...
+              </p>
+            ) : null}
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={onCancelDelete}
+                className="inline-flex items-center justify-center rounded-md bg-action-secondary px-3 py-2 text-sm font-medium text-action-secondary-text hover:bg-action-secondary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={onConfirmDelete}
+                className="inline-flex items-center justify-center rounded-md bg-action-danger px-4 py-2 text-sm font-medium text-action-danger-text hover:bg-action-danger-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              >
+                {deleting ? "Deleting..." : "Delete post"}
+              </button>
+            </div>
+          </div>
         ) : isEditing ? (
           <form
             className="grid gap-5"

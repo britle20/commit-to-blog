@@ -118,3 +118,14 @@ export async function updatePost(
 
   return body.post;
 }
+
+export async function deletePost(postId: string, signal?: AbortSignal) {
+  const response = await fetch(`/api/posts/${encodeURIComponent(postId)}`, {
+    method: "DELETE",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response, "Failed to delete post."));
+  }
+}

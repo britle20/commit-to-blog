@@ -89,7 +89,7 @@ Related feature doc: [09 Saved and Published Post Views](features/09-saved-and-p
 - [x] Show saved posts as cards with title, summary, repository, branch, status, and date.
 - [x] Add post detail view.
 - [x] Add edit flow for saved posts.
-- [ ] Add delete flow with confirmation.
+- [x] Add delete flow with confirmation.
 - [ ] Add status change from `draft` to `published`.
 - [ ] Show `published` posts in the service as readable blog posts.
 
