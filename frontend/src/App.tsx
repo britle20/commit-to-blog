@@ -11,10 +11,16 @@ import {
 import { CommitList } from "./components/CommitList";
 import { DraftEditor } from "./components/DraftEditor";
 import { BranchSelector } from "./components/BranchSelector";
+import { PostList } from "./components/PostList";
 import { RepositorySelector } from "./components/RepositorySelector";
 import { getErrorMessage } from "./lib/api";
 import { generateBlogDraft, type GeneratedDraft } from "./lib/blog";
-import { createDraftPost, updateDraftPost, type Post } from "./lib/posts";
+import {
+  createDraftPost,
+  fetchPosts,
+  updateDraftPost,
+  type Post,
+} from "./lib/posts";
 import {
   fetchBranches,
   fetchCommits,
@@ -48,6 +54,10 @@ function clearCommitState(
   setCommitLoading(false);
 }
 
+function upsertPost(posts: Post[], nextPost: Post) {
+  return [nextPost, ...posts.filter((post) => post.id !== nextPost.id)];
+}
+
 function App() {
   const [repositories, setRepositories] = useState<RepositorySummary[]>([]);
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<number | null>(
@@ -63,17 +73,21 @@ function App() {
     null,
   );
   const [savedDraft, setSavedDraft] = useState<Post | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [postsReloadKey, setPostsReloadKey] = useState(0);
   const [hasUnsavedDraftChanges, setHasUnsavedDraftChanges] = useState(false);
   const [loading, setLoading] = useState(true);
   const [branchLoading, setBranchLoading] = useState(false);
   const [commitLoading, setCommitLoading] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [postsLoading, setPostsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [branchError, setBranchError] = useState<string | null>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [postsError, setPostsError] = useState<string | null>(null);
   const draftControllerRef = useRef<AbortController | null>(null);
   const saveControllerRef = useRef<AbortController | null>(null);
 
@@ -97,6 +111,33 @@ function App() {
       saveControllerRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void fetchPosts(controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) {
+          setPosts(items);
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) {
+          setPostsError(
+            getErrorMessage(requestError, "Failed to load saved posts."),
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setPostsLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [postsReloadKey]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -434,6 +475,8 @@ function App() {
             summary: post.summary,
             content: post.content,
           });
+          setPosts((currentPosts) => upsertPost(currentPosts, post));
+          setPostsError(null);
           setHasUnsavedDraftChanges(false);
         }
       })
@@ -702,6 +745,17 @@ function App() {
           onGenerate={handleGenerateDraft}
           onDraftChange={updateDraftField}
           onSave={handleSaveDraft}
+        />
+
+        <PostList
+          posts={posts}
+          loading={postsLoading}
+          error={postsError}
+          onRetry={() => {
+            setPostsLoading(true);
+            setPostsError(null);
+            setPostsReloadKey((currentKey) => currentKey + 1);
+          }}
         />
       </div>
     </main>

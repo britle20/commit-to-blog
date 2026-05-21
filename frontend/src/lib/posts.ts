@@ -42,6 +42,22 @@ type UpdatePostResponse = {
   post: Post;
 };
 
+type ListPostsResponse = {
+  posts: Post[];
+};
+
+export async function fetchPosts(signal?: AbortSignal) {
+  const response = await fetch("/api/posts", { signal });
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response, "Failed to load posts."));
+  }
+
+  const body = (await response.json()) as ListPostsResponse;
+
+  return body.posts;
+}
+
 export async function createDraftPost(
   input: CreatePostInput,
   signal?: AbortSignal,
