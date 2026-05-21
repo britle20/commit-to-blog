@@ -32,6 +32,10 @@ type CreatePostResponse = {
   post: Post;
 };
 
+type PostResponse = {
+  post: Post;
+};
+
 type UpdatePostInput = {
   title: string;
   summary: string;
@@ -56,6 +60,20 @@ export async function fetchPosts(signal?: AbortSignal) {
   const body = (await response.json()) as ListPostsResponse;
 
   return body.posts;
+}
+
+export async function fetchPost(postId: string, signal?: AbortSignal) {
+  const response = await fetch(`/api/posts/${encodeURIComponent(postId)}`, {
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response, "Failed to load post."));
+  }
+
+  const body = (await response.json()) as PostResponse;
+
+  return body.post;
 }
 
 export async function createDraftPost(

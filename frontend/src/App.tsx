@@ -11,12 +11,14 @@ import {
 import { CommitList } from "./components/CommitList";
 import { DraftEditor } from "./components/DraftEditor";
 import { BranchSelector } from "./components/BranchSelector";
+import { PostDetail } from "./components/PostDetail";
 import { PostList } from "./components/PostList";
 import { RepositorySelector } from "./components/RepositorySelector";
 import { getErrorMessage } from "./lib/api";
 import { generateBlogDraft, type GeneratedDraft } from "./lib/blog";
 import {
   createDraftPost,
+  fetchPost,
   fetchPosts,
   updateDraftPost,
   type Post,
@@ -75,6 +77,9 @@ function App() {
   const [savedDraft, setSavedDraft] = useState<Post | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsReloadKey, setPostsReloadKey] = useState(0);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [postDetailReloadKey, setPostDetailReloadKey] = useState(0);
   const [hasUnsavedDraftChanges, setHasUnsavedDraftChanges] = useState(false);
   const [loading, setLoading] = useState(true);
   const [branchLoading, setBranchLoading] = useState(false);
@@ -82,12 +87,14 @@ function App() {
   const [draftLoading, setDraftLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [postsLoading, setPostsLoading] = useState(true);
+  const [postDetailLoading, setPostDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [branchError, setBranchError] = useState<string | null>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [postsError, setPostsError] = useState<string | null>(null);
+  const [postDetailError, setPostDetailError] = useState<string | null>(null);
   const draftControllerRef = useRef<AbortController | null>(null);
   const saveControllerRef = useRef<AbortController | null>(null);
 
@@ -119,6 +126,15 @@ function App() {
       .then((items) => {
         if (!controller.signal.aborted) {
           setPosts(items);
+          setSelectedPost((currentPost) => {
+            if (currentPost === null) {
+              return currentPost;
+            }
+
+            return (
+              items.find((post) => post.id === currentPost.id) ?? currentPost
+            );
+          });
         }
       })
       .catch((requestError: unknown) => {
@@ -138,6 +154,39 @@ function App() {
       controller.abort();
     };
   }, [postsReloadKey]);
+
+  useEffect(() => {
+    if (selectedPostId === null) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    void fetchPost(selectedPostId, controller.signal)
+      .then((post) => {
+        if (!controller.signal.aborted) {
+          setSelectedPost(post);
+          setPosts((currentPosts) => upsertPost(currentPosts, post));
+          setPostDetailError(null);
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) {
+          setPostDetailError(
+            getErrorMessage(requestError, "Failed to load post details."),
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setPostDetailLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [postDetailReloadKey, selectedPostId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -476,6 +525,9 @@ function App() {
             content: post.content,
           });
           setPosts((currentPosts) => upsertPost(currentPosts, post));
+          setSelectedPost((currentPost) =>
+            currentPost?.id === post.id ? post : currentPost,
+          );
           setPostsError(null);
           setHasUnsavedDraftChanges(false);
         }
@@ -498,6 +550,31 @@ function App() {
           saveControllerRef.current = null;
         }
       });
+  }
+
+  function openPostDetail(post: Post) {
+    setSelectedPostId(post.id);
+    setSelectedPost(post);
+    setPostDetailLoading(true);
+    setPostDetailError(null);
+    setPostDetailReloadKey((currentKey) => currentKey + 1);
+  }
+
+  function retryPostDetail() {
+    if (selectedPostId === null) {
+      return;
+    }
+
+    setPostDetailLoading(true);
+    setPostDetailError(null);
+    setPostDetailReloadKey((currentKey) => currentKey + 1);
+  }
+
+  function closePostDetail() {
+    setSelectedPostId(null);
+    setSelectedPost(null);
+    setPostDetailLoading(false);
+    setPostDetailError(null);
   }
 
   return (
@@ -747,16 +824,28 @@ function App() {
           onSave={handleSaveDraft}
         />
 
-        <PostList
-          posts={posts}
-          loading={postsLoading}
-          error={postsError}
-          onRetry={() => {
-            setPostsLoading(true);
-            setPostsError(null);
-            setPostsReloadKey((currentKey) => currentKey + 1);
-          }}
-        />
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <PostList
+            posts={posts}
+            selectedPostId={selectedPostId}
+            loading={postsLoading}
+            error={postsError}
+            onOpenPost={openPostDetail}
+            onRetry={() => {
+              setPostsLoading(true);
+              setPostsError(null);
+              setPostsReloadKey((currentKey) => currentKey + 1);
+            }}
+          />
+
+          <PostDetail
+            post={selectedPost}
+            loading={postDetailLoading}
+            error={postDetailError}
+            onRetry={retryPostDetail}
+            onClose={closePostDetail}
+          />
+        </div>
       </div>
     </main>
   );

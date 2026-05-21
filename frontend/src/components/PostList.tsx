@@ -3,12 +3,21 @@ import { PostCard } from "./PostCard";
 
 type PostListProps = {
   posts: Post[];
+  selectedPostId: string | null;
   loading: boolean;
   error: string | null;
+  onOpenPost: (post: Post) => void;
   onRetry: () => void;
 };
 
-export function PostList({ posts, loading, error, onRetry }: PostListProps) {
+export function PostList({
+  posts,
+  selectedPostId,
+  loading,
+  error,
+  onOpenPost,
+  onRetry,
+}: PostListProps) {
   return (
     <section className="rounded-lg border border-default bg-surface shadow-elevated">
       <div className="flex flex-col gap-4 border-b border-default px-6 py-5 text-left md:flex-row md:items-start md:justify-between">
@@ -62,7 +71,12 @@ export function PostList({ posts, loading, error, onRetry }: PostListProps) {
         ) : (
           <div className="grid gap-3">
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+              <PostCard
+                key={post.id}
+                post={post}
+                selected={selectedPostId === post.id}
+                onOpen={onOpenPost}
+              />
             ))}
           </div>
         )}
