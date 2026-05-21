@@ -13,6 +13,7 @@ import { DraftEditor } from "./components/DraftEditor";
 import { BranchSelector } from "./components/BranchSelector";
 import { PostDetail } from "./components/PostDetail";
 import { PostList } from "./components/PostList";
+import { PublishedPostList } from "./components/PublishedPostList";
 import { RepositorySelector } from "./components/RepositorySelector";
 import { getErrorMessage } from "./lib/api";
 import { generateBlogDraft, type GeneratedDraft } from "./lib/blog";
@@ -21,6 +22,7 @@ import {
   deletePost,
   fetchPost,
   fetchPosts,
+  fetchPublishedPosts,
   updatePost,
   updatePostStatus,
   type Post,
@@ -63,6 +65,12 @@ function upsertPost(posts: Post[], nextPost: Post) {
   return [nextPost, ...posts.filter((post) => post.id !== nextPost.id)];
 }
 
+function syncPublishedPost(posts: Post[], nextPost: Post) {
+  return nextPost.status === "published"
+    ? upsertPost(posts, nextPost)
+    : posts.filter((post) => post.id !== nextPost.id);
+}
+
 function App() {
   const [repositories, setRepositories] = useState<RepositorySummary[]>([]);
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<number | null>(
@@ -80,6 +88,8 @@ function App() {
   const [savedDraft, setSavedDraft] = useState<Post | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsReloadKey, setPostsReloadKey] = useState(0);
+  const [publishedPosts, setPublishedPosts] = useState<Post[]>([]);
+  const [publishedPostsReloadKey, setPublishedPostsReloadKey] = useState(0);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [postDetailReloadKey, setPostDetailReloadKey] = useState(0);
@@ -94,6 +104,7 @@ function App() {
   const [draftLoading, setDraftLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [postsLoading, setPostsLoading] = useState(true);
+  const [publishedPostsLoading, setPublishedPostsLoading] = useState(true);
   const [postDetailLoading, setPostDetailLoading] = useState(false);
   const [postEditSaving, setPostEditSaving] = useState(false);
   const [postDeleting, setPostDeleting] = useState(false);
@@ -104,6 +115,9 @@ function App() {
   const [draftError, setDraftError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [postsError, setPostsError] = useState<string | null>(null);
+  const [publishedPostsError, setPublishedPostsError] = useState<string | null>(
+    null,
+  );
   const [postDetailError, setPostDetailError] = useState<string | null>(null);
   const [postEditError, setPostEditError] = useState<string | null>(null);
   const [postDeleteError, setPostDeleteError] = useState<string | null>(null);
@@ -175,6 +189,33 @@ function App() {
   }, [postsReloadKey]);
 
   useEffect(() => {
+    const controller = new AbortController();
+
+    void fetchPublishedPosts(controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) {
+          setPublishedPosts(items);
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) {
+          setPublishedPostsError(
+            getErrorMessage(requestError, "Failed to load published posts."),
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setPublishedPostsLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [publishedPostsReloadKey]);
+
+  useEffect(() => {
     if (selectedPostId === null) {
       return;
     }
@@ -186,6 +227,9 @@ function App() {
         if (!controller.signal.aborted) {
           setSelectedPost(post);
           setPosts((currentPosts) => upsertPost(currentPosts, post));
+          setPublishedPosts((currentPosts) =>
+            syncPublishedPost(currentPosts, post),
+          );
           setPostDetailError(null);
         }
       })
@@ -544,6 +588,9 @@ function App() {
             content: post.content,
           });
           setPosts((currentPosts) => upsertPost(currentPosts, post));
+          setPublishedPosts((currentPosts) =>
+            syncPublishedPost(currentPosts, post),
+          );
           setSelectedPost((currentPost) =>
             currentPost?.id === post.id ? post : currentPost,
           );
@@ -691,6 +738,9 @@ function App() {
         if (!controller.signal.aborted) {
           setSelectedPost(post);
           setPosts((currentPosts) => upsertPost(currentPosts, post));
+          setPublishedPosts((currentPosts) =>
+            syncPublishedPost(currentPosts, post),
+          );
           setSavedDraft((currentDraft) =>
             currentDraft?.id === post.id ? post : currentDraft,
           );
@@ -773,6 +823,9 @@ function App() {
           setPosts((currentPosts) =>
             currentPosts.filter((post) => post.id !== targetPostId),
           );
+          setPublishedPosts((currentPosts) =>
+            currentPosts.filter((post) => post.id !== targetPostId),
+          );
           setSelectedPostId(null);
           setSelectedPost(null);
           setPostDetailLoading(false);
@@ -835,6 +888,8 @@ function App() {
         if (!controller.signal.aborted) {
           setSelectedPost(post);
           setPosts((currentPosts) => upsertPost(currentPosts, post));
+          setPublishedPosts((currentPosts) => upsertPost(currentPosts, post));
+          setPublishedPostsError(null);
           setSavedDraft((currentDraft) =>
             currentDraft?.id === post.id ? post : currentDraft,
           );
@@ -1142,6 +1197,17 @@ function App() {
             onClose={closePostDetail}
           />
         </div>
+
+        <PublishedPostList
+          posts={publishedPosts}
+          loading={publishedPostsLoading}
+          error={publishedPostsError}
+          onRetry={() => {
+            setPublishedPostsLoading(true);
+            setPublishedPostsError(null);
+            setPublishedPostsReloadKey((currentKey) => currentKey + 1);
+          }}
+        />
       </div>
     </main>
   );

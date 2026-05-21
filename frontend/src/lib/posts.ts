@@ -52,8 +52,18 @@ type ListPostsResponse = {
   posts: Post[];
 };
 
-export async function fetchPosts(signal?: AbortSignal) {
-  const response = await fetch("/api/posts", { signal });
+async function fetchPostList(status?: PostStatus, signal?: AbortSignal) {
+  const searchParams = new URLSearchParams();
+
+  if (status !== undefined) {
+    searchParams.set("status", status);
+  }
+
+  const queryString = searchParams.toString();
+  const response = await fetch(
+    queryString === "" ? "/api/posts" : `/api/posts?${queryString}`,
+    { signal },
+  );
 
   if (!response.ok) {
     throw new Error(await readApiError(response, "Failed to load posts."));
@@ -62,6 +72,14 @@ export async function fetchPosts(signal?: AbortSignal) {
   const body = (await response.json()) as ListPostsResponse;
 
   return body.posts;
+}
+
+export async function fetchPosts(signal?: AbortSignal) {
+  return fetchPostList(undefined, signal);
+}
+
+export async function fetchPublishedPosts(signal?: AbortSignal) {
+  return fetchPostList("published", signal);
 }
 
 export async function fetchPost(postId: string, signal?: AbortSignal) {
