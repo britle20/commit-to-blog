@@ -30,7 +30,7 @@ function CommitRow({
       disabled={disabled}
       onClick={() => onToggle(commit)}
       className={[
-        "flex w-full flex-col gap-2 rounded-lg border p-4 text-left transition",
+        "flex min-w-0 w-full flex-col gap-2 rounded-lg border p-4 text-left transition",
         "bg-surface text-primary border-default",
         selected
           ? "border-action-primary shadow-elevated"
@@ -39,10 +39,10 @@ function CommitRow({
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
       ].join(" ")}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-semibold">{commit.message}</h3>
-          <p className="mt-1 text-xs text-secondary">
+          <p className="mt-1 truncate text-xs text-secondary">
             {commit.authorName} · {commit.authorDate}
           </p>
         </div>
@@ -50,7 +50,9 @@ function CommitRow({
           {commit.sha.slice(0, 7)}
         </span>
       </div>
-      <p className="truncate text-xs text-muted">{commit.htmlUrl}</p>
+      <p className="min-w-0 max-w-full truncate text-xs text-muted">
+        {commit.htmlUrl}
+      </p>
     </button>
   );
 }
@@ -69,7 +71,7 @@ export function CommitList({
   return (
     <section
       aria-disabled={disabled}
-      className="rounded-lg border border-default bg-surface shadow-elevated"
+      className="min-w-0 rounded-lg border border-default bg-surface shadow-elevated"
     >
       <div className="border-b border-default px-6 py-5 text-left">
         <p className="text-sm font-medium uppercase tracking-wide text-muted">
@@ -86,7 +88,7 @@ export function CommitList({
           <button
             type="button"
             disabled
-            className="flex w-full cursor-not-allowed rounded-lg border border-default bg-surface-muted p-4 text-left text-sm text-muted opacity-70"
+            className="flex min-w-0 w-full cursor-not-allowed rounded-lg border border-default bg-surface-muted p-4 text-left text-sm text-muted opacity-70"
           >
             Select a repository first to load commits.
           </button>
@@ -94,7 +96,7 @@ export function CommitList({
           <button
             type="button"
             disabled
-            className="flex w-full cursor-not-allowed rounded-lg border border-default bg-surface-muted p-4 text-left text-sm text-muted opacity-70"
+            className="flex min-w-0 w-full cursor-not-allowed rounded-lg border border-default bg-surface-muted p-4 text-left text-sm text-muted opacity-70"
           >
             Select a branch first to load commits.
           </button>

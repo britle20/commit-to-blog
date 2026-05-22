@@ -29,7 +29,7 @@ function BranchCard({
       disabled={disabled}
       onClick={() => onSelect(branch)}
       className={[
-        "flex w-full flex-col gap-2 rounded-lg border p-4 text-left transition",
+        "flex min-w-0 w-full flex-col gap-2 rounded-lg border p-4 text-left transition",
         "bg-surface text-primary border-default",
         selected
           ? "border-action-primary shadow-elevated"
@@ -38,8 +38,10 @@ function BranchCard({
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
       ].join(" ")}
     >
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="truncate text-base font-semibold">{branch.name}</h3>
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <h3 className="min-w-0 truncate text-base font-semibold">
+          {branch.name}
+        </h3>
         <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-muted">
           {branch.commitSha.slice(0, 7)}
         </span>
@@ -61,7 +63,7 @@ export function BranchSelector({
   return (
     <section
       aria-disabled={disabled}
-      className="rounded-lg border border-default bg-surface shadow-elevated"
+      className="min-w-0 rounded-lg border border-default bg-surface shadow-elevated"
     >
       <div className="border-b border-default px-6 py-5 text-left">
         <p className="text-sm font-medium uppercase tracking-wide text-muted">
@@ -78,7 +80,7 @@ export function BranchSelector({
           <button
             type="button"
             disabled
-            className="flex w-full cursor-not-allowed rounded-lg border border-default bg-surface-muted p-4 text-left text-sm text-muted opacity-70"
+            className="flex min-w-0 w-full cursor-not-allowed rounded-lg border border-default bg-surface-muted p-4 text-left text-sm text-muted opacity-70"
           >
             Select a repository first to load branches.
           </button>

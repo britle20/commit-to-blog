@@ -942,7 +942,7 @@ function App() {
 
   return (
     <main className="min-h-screen bg-background text-primary">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-[92rem] flex-col gap-6 px-4 py-6 md:px-8 md:py-8">
         <header className="rounded-lg border border-default bg-surface px-6 py-5 text-left shadow-elevated">
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div>
@@ -1000,7 +1000,7 @@ function App() {
 
         {activeView === "compose" ? (
           <>
-            <div className="grid gap-6 lg:grid-cols-3">
+            <div className="grid min-w-0 gap-6 lg:grid-cols-3">
               <RepositorySelector
                 repositories={repositories}
                 selectedRepositoryId={selectedRepositoryId}

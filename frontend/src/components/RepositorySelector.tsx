@@ -24,7 +24,7 @@ function RepositoryCard({
       aria-pressed={selected}
       onClick={() => onSelect(repository)}
       className={[
-        "flex w-full flex-col gap-3 rounded-lg border p-4 text-left transition",
+        "flex min-w-0 w-full flex-col gap-3 rounded-lg border p-4 text-left transition",
         "bg-surface text-primary border-default",
         selected
           ? "border-action-primary shadow-elevated"
@@ -32,7 +32,7 @@ function RepositoryCard({
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
       ].join(" ")}
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex min-w-0 items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="truncate text-base font-semibold">{repository.name}</h3>
           <p className="mt-1 truncate text-sm text-secondary">
@@ -51,11 +51,11 @@ function RepositoryCard({
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-2 text-xs text-muted">
-        <span className="rounded-full bg-surface-muted px-2.5 py-1">
+      <div className="flex min-w-0 flex-wrap gap-2 text-xs text-muted">
+        <span className="max-w-full truncate rounded-full bg-surface-muted px-2.5 py-1">
           Owner: {repository.owner}
         </span>
-        <span className="rounded-full bg-surface-muted px-2.5 py-1">
+        <span className="max-w-full truncate rounded-full bg-surface-muted px-2.5 py-1">
           Default branch: {repository.defaultBranch}
         </span>
       </div>
@@ -72,7 +72,7 @@ export function RepositorySelector({
   onRetry,
 }: RepositorySelectorProps) {
   return (
-    <section className="rounded-lg border border-default bg-surface shadow-elevated">
+    <section className="min-w-0 rounded-lg border border-default bg-surface shadow-elevated">
       <div className="border-b border-default px-6 py-5 text-left">
         <p className="text-sm font-medium uppercase tracking-wide text-muted">
           Step 1
