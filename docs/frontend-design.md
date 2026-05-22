@@ -47,6 +47,7 @@ Example usage direction:
 - Fetch branches for the selected repository.
 - Show commits for the selected branch and allow multiple commit selection.
 - Show repository, branch, and commit selection as three equal-width columns on desktop.
+- Keep each selection column at a stable desktop height and scroll within the column when there are many items.
 - Request AI draft generation from the selected commits.
 - Show generated title, summary, and content in the editor.
 

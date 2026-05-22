@@ -71,7 +71,7 @@ export function CommitList({
   return (
     <section
       aria-disabled={disabled}
-      className="min-w-0 rounded-lg border border-default bg-surface shadow-elevated"
+      className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-default bg-surface shadow-elevated lg:h-[calc(100svh-7rem)] lg:min-h-[30rem] lg:max-h-[80rem]"
     >
       <div className="border-b border-default px-6 py-5 text-left">
         <p className="text-sm font-medium uppercase tracking-wide text-muted">
@@ -83,7 +83,7 @@ export function CommitList({
         </p>
       </div>
 
-      <div className="p-6 text-left">
+      <div className="min-h-0 flex-1 overflow-y-auto p-6 text-left">
         {repository === null ? (
           <button
             type="button"
