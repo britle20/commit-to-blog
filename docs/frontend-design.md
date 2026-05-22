@@ -46,6 +46,7 @@ Example usage direction:
 - Fetch and select a GitHub repository.
 - Fetch branches for the selected repository.
 - Show commits for the selected branch and allow multiple commit selection.
+- Show repository, branch, and commit selection as three equal-width columns on desktop.
 - Request AI draft generation from the selected commits.
 - Show generated title, summary, and content in the editor.
 

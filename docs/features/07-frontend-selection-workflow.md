@@ -7,6 +7,7 @@ Build the frontend repository, branch, and commit selection flow that prepares i
 ## Implementation Context
 
 - Selection order is repository, branch, then commits.
+- Repository, branch, and commit selectors share the desktop width as three equal columns.
 - Changing repository clears branch, commit, and generated draft state.
 - Changing branch clears commit and generated draft state.
 - Controls stay disabled until their required previous selection exists.

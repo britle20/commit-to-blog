@@ -325,12 +325,6 @@ function App() {
     [repositories, selectedRepositoryId],
   );
 
-  const selectedBranch = useMemo(
-    () =>
-      branches.find((branch) => branch.name === selectedBranchName) ?? null,
-    [branches, selectedBranchName],
-  );
-
   const selectedCommits = useMemo(
     () => commits.filter((commit) => selectedCommitShas.includes(commit.sha)),
     [commits, selectedCommitShas],
@@ -1006,7 +1000,7 @@ function App() {
 
         {activeView === "compose" ? (
           <>
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
+            <div className="grid gap-6 lg:grid-cols-3">
               <RepositorySelector
                 repositories={repositories}
                 selectedRepositoryId={selectedRepositoryId}
@@ -1094,137 +1088,65 @@ function App() {
                 }}
               />
 
-              <div className="flex flex-col gap-6">
-                <aside className="rounded-lg border border-default bg-surface p-6 text-left shadow-elevated">
-                  <p className="text-sm font-medium uppercase tracking-wide text-muted">
-                    Current selection
-                  </p>
-
-                  {selectedRepository ? (
-                    <div className="mt-4 space-y-4">
-                      <div>
-                        <h2 className="text-xl font-semibold">
-                          {selectedRepository.name}
-                        </h2>
-                        <p className="mt-1 text-sm text-secondary">
-                          {selectedRepository.fullName}
-                        </p>
-                      </div>
-
-                      <dl className="grid gap-3 text-sm">
-                        <div className="rounded-lg bg-surface-muted px-4 py-3">
-                          <dt className="text-muted">Owner</dt>
-                          <dd className="mt-1 text-primary">
-                            {selectedRepository.owner}
-                          </dd>
-                        </div>
-                        <div className="rounded-lg bg-surface-muted px-4 py-3">
-                          <dt className="text-muted">Default branch</dt>
-                          <dd className="mt-1 text-primary">
-                            {selectedRepository.defaultBranch}
-                          </dd>
-                        </div>
-                        <div className="rounded-lg bg-surface-muted px-4 py-3">
-                          <dt className="text-muted">Visibility</dt>
-                          <dd className="mt-1 text-primary">
-                            {selectedRepository.private ? "Private" : "Public"}
-                          </dd>
-                        </div>
-                        <div className="rounded-lg bg-surface-muted px-4 py-3">
-                          <dt className="text-muted">Selected branch</dt>
-                          <dd className="mt-1 text-primary">
-                            {selectedBranch?.name ?? "None"}
-                          </dd>
-                        </div>
-                        <div className="rounded-lg bg-surface-muted px-4 py-3">
-                          <dt className="text-muted">Selected commits</dt>
-                          <dd className="mt-1 text-primary">
-                            {selectedCommitShas.length}
-                          </dd>
-                        </div>
-                      </dl>
-
-                      <a
-                        href={selectedRepository.htmlUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex rounded-md bg-action-secondary px-3 py-2 text-sm font-medium text-action-secondary-text hover:bg-action-secondary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                      >
-                        Open on GitHub
-                      </a>
-                    </div>
-                  ) : (
-                    <p className="mt-4 text-sm text-secondary">
-                      Select a repository to see its details here.
-                    </p>
-                  )}
-
-                  <div className="mt-6 rounded-lg border border-border-muted bg-surface-muted px-4 py-3 text-sm text-secondary">
-                    Branch and commit selection will unlock after a repository
-                    is chosen.
-                  </div>
-                </aside>
-
-                <BranchSelector
-                  repository={selectedRepository}
-                  branches={branches}
-                  selectedBranchName={selectedBranchName}
-                  loading={branchLoading}
-                  error={branchError}
-                  disabled={selectedRepository === null}
-                  onSelect={(branch) => {
-                    setSelectedBranchName(branch.name);
-                    clearCommitState(
-                      setCommits,
-                      setSelectedCommitShas,
-                      setCommitError,
-                      setCommitLoading,
-                    );
-                    clearDraftState();
-                    setCommitLoading(true);
-                  }}
-                  onRetry={() => {
-                    if (selectedRepository === null) {
-                      return;
-                    }
-
-                    setBranchLoading(true);
-                    setBranchError(null);
-                    clearCommitState(
-                      setCommits,
-                      setSelectedCommitShas,
-                      setCommitError,
-                      setCommitLoading,
-                    );
-                    clearDraftState();
-                  }}
-                />
-
-                <CommitList
-                  repository={selectedRepository}
-                  branchName={selectedBranchName}
-                  commits={commits}
-                  selectedCommitShas={selectedCommitShas}
-                  loading={commitLoading}
-                  error={commitError}
-                  disabled={
-                    selectedRepository === null || selectedBranchName === null
+              <BranchSelector
+                repository={selectedRepository}
+                branches={branches}
+                selectedBranchName={selectedBranchName}
+                loading={branchLoading}
+                error={branchError}
+                disabled={selectedRepository === null}
+                onSelect={(branch) => {
+                  setSelectedBranchName(branch.name);
+                  clearCommitState(
+                    setCommits,
+                    setSelectedCommitShas,
+                    setCommitError,
+                    setCommitLoading,
+                  );
+                  clearDraftState();
+                  setCommitLoading(true);
+                }}
+                onRetry={() => {
+                  if (selectedRepository === null) {
+                    return;
                   }
-                  onToggle={toggleCommit}
-                  onRetry={() => {
-                    if (
-                      selectedRepository === null ||
-                      selectedBranchName === null
-                    ) {
-                      return;
-                    }
 
-                    setCommitLoading(true);
-                    setCommitError(null);
-                    clearDraftState();
-                  }}
-                />
-              </div>
+                  setBranchLoading(true);
+                  setBranchError(null);
+                  clearCommitState(
+                    setCommits,
+                    setSelectedCommitShas,
+                    setCommitError,
+                    setCommitLoading,
+                  );
+                  clearDraftState();
+                }}
+              />
+
+              <CommitList
+                repository={selectedRepository}
+                branchName={selectedBranchName}
+                commits={commits}
+                selectedCommitShas={selectedCommitShas}
+                loading={commitLoading}
+                error={commitError}
+                disabled={
+                  selectedRepository === null || selectedBranchName === null
+                }
+                onToggle={toggleCommit}
+                onRetry={() => {
+                  if (
+                    selectedRepository === null ||
+                    selectedBranchName === null
+                  ) {
+                    return;
+                  }
+
+                  setCommitLoading(true);
+                  setCommitError(null);
+                  clearDraftState();
+                }}
+              />
             </div>
 
             <DraftEditor
