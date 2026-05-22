@@ -248,7 +248,7 @@ export async function updatePost(postId: string, input: UpdatePostInput) {
   ensurePostId(postId);
 
   const post = await PostModel.findByIdAndUpdate(postId, input, {
-    new: true,
+    returnDocument: "after",
     runValidators: true,
   });
 
@@ -274,7 +274,7 @@ export async function updatePostStatus(postId: string, status: PostStatus) {
       ...(status === "draft" ? { $unset: { publishedAt: "" } } : {}),
     },
     {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     },
   );

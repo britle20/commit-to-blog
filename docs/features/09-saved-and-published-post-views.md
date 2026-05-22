@@ -6,8 +6,9 @@ Show saved posts, support post management actions, and display internally publis
 
 ## Implementation Context
 
-- Saved posts appear as cards with title, summary, repository, branch, status, and date.
-- Users can open details, edit, delete, and change status.
+- Published posts are the first screen users see when opening the app.
+- Draft posts appear on a separate draft list screen as cards with title, summary, repository, branch, status, and date.
+- Users can open draft details, edit, delete, and change status.
 - Delete requires confirmation.
 - Publishing is an internal state change, not an external blog upload.
 - Published posts are fetched through the server-side status filter defined in [docs/api-design.md](../api-design.md#post-api).
@@ -23,6 +24,8 @@ Show saved posts, support post management actions, and display internally publis
 
 ## Acceptance Notes
 
+- The published post list is reachable without entering the post creation flow.
+- New post creation and draft management are separate screens.
 - Draft posts do not appear in the published post view.
 - Invalid post status filters return `400`.
 - External blog platform publishing stays out of MVP scope.

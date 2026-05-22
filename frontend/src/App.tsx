@@ -71,7 +71,10 @@ function syncPublishedPost(posts: Post[], nextPost: Post) {
     : posts.filter((post) => post.id !== nextPost.id);
 }
 
+type AppView = "published" | "compose" | "drafts";
+
 function App() {
+  const [activeView, setActiveView] = useState<AppView>("published");
   const [repositories, setRepositories] = useState<RepositorySummary[]>([]);
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<number | null>(
     null,
@@ -331,6 +334,11 @@ function App() {
   const selectedCommits = useMemo(
     () => commits.filter((commit) => selectedCommitShas.includes(commit.sha)),
     [commits, selectedCommitShas],
+  );
+
+  const draftPosts = useMemo(
+    () => posts.filter((post) => post.status === "draft"),
+    [posts],
   );
 
   function toggleCommit(commit: CommitSummary) {
@@ -638,6 +646,7 @@ function App() {
     setPostStatusUpdating(false);
     setPostStatusError(null);
     setPostDetailReloadKey((currentKey) => currentKey + 1);
+    setActiveView("drafts");
   }
 
   function retryPostDetail() {
@@ -889,6 +898,7 @@ function App() {
           setSelectedPost(post);
           setPosts((currentPosts) => upsertPost(currentPosts, post));
           setPublishedPosts((currentPosts) => upsertPost(currentPosts, post));
+          setActiveView("published");
           setPublishedPostsError(null);
           setSavedDraft((currentDraft) =>
             currentDraft?.id === post.id ? post : currentDraft,
@@ -912,90 +922,98 @@ function App() {
       });
   }
 
+  const pageCopy = {
+    published: {
+      title: "Published posts",
+      description:
+        "Read posts that have already been published inside this service.",
+    },
+    compose: {
+      title: "Write a new post",
+      description:
+        "Select a repository, branch, and commits, then generate and save a draft.",
+    },
+    drafts: {
+      title: "Draft posts",
+      description:
+        "Open a saved draft to edit it, delete it, or publish it inside this service.",
+    },
+  } satisfies Record<AppView, { title: string; description: string }>;
+
+  const navItems: Array<{ view: AppView; label: string }> = [
+    { view: "published", label: "Published" },
+    { view: "compose", label: "New post" },
+    { view: "drafts", label: "Drafts" },
+  ];
+
   return (
     <main className="min-h-screen bg-background text-primary">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
         <header className="rounded-lg border border-default bg-surface px-6 py-5 text-left shadow-elevated">
-          <p className="text-sm font-medium uppercase tracking-wide text-muted">
-            Commit to Blog
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold">
-            Select a repository to start a blog draft
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm text-secondary">
-            Choose the GitHub repository that contains the work you want to turn
-            into a development blog post. Branch and commit selection comes next.
-          </p>
+          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-wide text-muted">
+                Commit to Blog
+              </p>
+              <h1 className="mt-2 text-2xl font-semibold">
+                {pageCopy[activeView].title}
+              </h1>
+              <p className="mt-3 max-w-3xl text-sm text-secondary">
+                {pageCopy[activeView].description}
+              </p>
+            </div>
+
+            <nav
+              aria-label="Primary"
+              className="flex shrink-0 flex-wrap gap-2 rounded-lg bg-surface-muted p-1"
+            >
+              {navItems.map((item) => {
+                const selected = activeView === item.view;
+
+                return (
+                  <button
+                    key={item.view}
+                    type="button"
+                    aria-current={selected ? "page" : undefined}
+                    onClick={() => setActiveView(item.view)}
+                    className={[
+                      "rounded-md px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+                      selected
+                        ? "bg-action-primary text-action-primary-text"
+                        : "text-action-secondary-text hover:bg-action-secondary-hover",
+                    ].join(" ")}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
-          <RepositorySelector
-            repositories={repositories}
-            selectedRepositoryId={selectedRepositoryId}
-            loading={loading}
-            error={error}
-            onSelect={(repository) => {
-              setSelectedRepositoryId(repository.id);
-              clearBranchState(
-                setBranches,
-                setSelectedBranchName,
-                setBranchError,
-                setBranchLoading,
-              );
-              clearCommitState(
-                setCommits,
-                setSelectedCommitShas,
-                setCommitError,
-                setCommitLoading,
-              );
-              clearDraftState();
-              setBranchLoading(true);
-            }}
+        {activeView === "published" ? (
+          <PublishedPostList
+            posts={publishedPosts}
+            loading={publishedPostsLoading}
+            error={publishedPostsError}
             onRetry={() => {
-              setLoading(true);
-              setError(null);
-              clearDraftState();
+              setPublishedPostsLoading(true);
+              setPublishedPostsError(null);
+              setPublishedPostsReloadKey((currentKey) => currentKey + 1);
+            }}
+          />
+        ) : null}
 
-              void fetchRepositories()
-                .then((items) => {
-                  setRepositories(items);
-                  const nextRepository = items[0] ?? null;
-
-                  setSelectedRepositoryId(nextRepository?.id ?? null);
-                  clearCommitState(
-                    setCommits,
-                    setSelectedCommitShas,
-                    setCommitError,
-                    setCommitLoading,
-                  );
-                  clearDraftState();
-
-                  if (nextRepository !== null) {
-                    clearBranchState(
-                      setBranches,
-                      setSelectedBranchName,
-                      setBranchError,
-                      setBranchLoading,
-                    );
-                    setBranchLoading(true);
-                  } else {
-                    clearBranchState(
-                      setBranches,
-                      setSelectedBranchName,
-                      setBranchError,
-                      setBranchLoading,
-                    );
-                  }
-                })
-                .catch((requestError: unknown) => {
-                  setError(
-                    getErrorMessage(
-                      requestError,
-                      "Failed to load repositories.",
-                    ),
-                  );
-                  setRepositories([]);
-                  setSelectedRepositoryId(null);
+        {activeView === "compose" ? (
+          <>
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
+              <RepositorySelector
+                repositories={repositories}
+                selectedRepositoryId={selectedRepositoryId}
+                loading={loading}
+                error={error}
+                onSelect={(repository) => {
+                  setSelectedRepositoryId(repository.id);
                   clearBranchState(
                     setBranches,
                     setSelectedBranchName,
@@ -1009,205 +1027,268 @@ function App() {
                     setCommitLoading,
                   );
                   clearDraftState();
-                })
-                .finally(() => {
-                  setLoading(false);
-                });
-            }}
-          />
+                  setBranchLoading(true);
+                }}
+                onRetry={() => {
+                  setLoading(true);
+                  setError(null);
+                  clearDraftState();
 
-          <div className="flex flex-col gap-6">
-            <aside className="rounded-lg border border-default bg-surface p-6 text-left shadow-elevated">
-              <p className="text-sm font-medium uppercase tracking-wide text-muted">
-                Current selection
-              </p>
+                  void fetchRepositories()
+                    .then((items) => {
+                      setRepositories(items);
+                      const nextRepository = items[0] ?? null;
 
-              {selectedRepository ? (
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <h2 className="text-xl font-semibold">
-                      {selectedRepository.name}
-                    </h2>
-                    <p className="mt-1 text-sm text-secondary">
-                      {selectedRepository.fullName}
+                      setSelectedRepositoryId(nextRepository?.id ?? null);
+                      clearCommitState(
+                        setCommits,
+                        setSelectedCommitShas,
+                        setCommitError,
+                        setCommitLoading,
+                      );
+                      clearDraftState();
+
+                      if (nextRepository !== null) {
+                        clearBranchState(
+                          setBranches,
+                          setSelectedBranchName,
+                          setBranchError,
+                          setBranchLoading,
+                        );
+                        setBranchLoading(true);
+                      } else {
+                        clearBranchState(
+                          setBranches,
+                          setSelectedBranchName,
+                          setBranchError,
+                          setBranchLoading,
+                        );
+                      }
+                    })
+                    .catch((requestError: unknown) => {
+                      setError(
+                        getErrorMessage(
+                          requestError,
+                          "Failed to load repositories.",
+                        ),
+                      );
+                      setRepositories([]);
+                      setSelectedRepositoryId(null);
+                      clearBranchState(
+                        setBranches,
+                        setSelectedBranchName,
+                        setBranchError,
+                        setBranchLoading,
+                      );
+                      clearCommitState(
+                        setCommits,
+                        setSelectedCommitShas,
+                        setCommitError,
+                        setCommitLoading,
+                      );
+                      clearDraftState();
+                    })
+                    .finally(() => {
+                      setLoading(false);
+                    });
+                }}
+              />
+
+              <div className="flex flex-col gap-6">
+                <aside className="rounded-lg border border-default bg-surface p-6 text-left shadow-elevated">
+                  <p className="text-sm font-medium uppercase tracking-wide text-muted">
+                    Current selection
+                  </p>
+
+                  {selectedRepository ? (
+                    <div className="mt-4 space-y-4">
+                      <div>
+                        <h2 className="text-xl font-semibold">
+                          {selectedRepository.name}
+                        </h2>
+                        <p className="mt-1 text-sm text-secondary">
+                          {selectedRepository.fullName}
+                        </p>
+                      </div>
+
+                      <dl className="grid gap-3 text-sm">
+                        <div className="rounded-lg bg-surface-muted px-4 py-3">
+                          <dt className="text-muted">Owner</dt>
+                          <dd className="mt-1 text-primary">
+                            {selectedRepository.owner}
+                          </dd>
+                        </div>
+                        <div className="rounded-lg bg-surface-muted px-4 py-3">
+                          <dt className="text-muted">Default branch</dt>
+                          <dd className="mt-1 text-primary">
+                            {selectedRepository.defaultBranch}
+                          </dd>
+                        </div>
+                        <div className="rounded-lg bg-surface-muted px-4 py-3">
+                          <dt className="text-muted">Visibility</dt>
+                          <dd className="mt-1 text-primary">
+                            {selectedRepository.private ? "Private" : "Public"}
+                          </dd>
+                        </div>
+                        <div className="rounded-lg bg-surface-muted px-4 py-3">
+                          <dt className="text-muted">Selected branch</dt>
+                          <dd className="mt-1 text-primary">
+                            {selectedBranch?.name ?? "None"}
+                          </dd>
+                        </div>
+                        <div className="rounded-lg bg-surface-muted px-4 py-3">
+                          <dt className="text-muted">Selected commits</dt>
+                          <dd className="mt-1 text-primary">
+                            {selectedCommitShas.length}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      <a
+                        href={selectedRepository.htmlUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex rounded-md bg-action-secondary px-3 py-2 text-sm font-medium text-action-secondary-text hover:bg-action-secondary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                      >
+                        Open on GitHub
+                      </a>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm text-secondary">
+                      Select a repository to see its details here.
                     </p>
+                  )}
+
+                  <div className="mt-6 rounded-lg border border-border-muted bg-surface-muted px-4 py-3 text-sm text-secondary">
+                    Branch and commit selection will unlock after a repository
+                    is chosen.
                   </div>
+                </aside>
 
-                  <dl className="grid gap-3 text-sm">
-                    <div className="rounded-lg bg-surface-muted px-4 py-3">
-                      <dt className="text-muted">Owner</dt>
-                      <dd className="mt-1 text-primary">
-                        {selectedRepository.owner}
-                      </dd>
-                    </div>
-                    <div className="rounded-lg bg-surface-muted px-4 py-3">
-                      <dt className="text-muted">Default branch</dt>
-                      <dd className="mt-1 text-primary">
-                        {selectedRepository.defaultBranch}
-                      </dd>
-                    </div>
-                    <div className="rounded-lg bg-surface-muted px-4 py-3">
-                      <dt className="text-muted">Visibility</dt>
-                      <dd className="mt-1 text-primary">
-                        {selectedRepository.private ? "Private" : "Public"}
-                      </dd>
-                    </div>
-                    <div className="rounded-lg bg-surface-muted px-4 py-3">
-                      <dt className="text-muted">Selected branch</dt>
-                      <dd className="mt-1 text-primary">
-                        {selectedBranch?.name ?? "None"}
-                      </dd>
-                    </div>
-                    <div className="rounded-lg bg-surface-muted px-4 py-3">
-                      <dt className="text-muted">Selected commits</dt>
-                      <dd className="mt-1 text-primary">
-                        {selectedCommitShas.length}
-                      </dd>
-                    </div>
-                  </dl>
+                <BranchSelector
+                  repository={selectedRepository}
+                  branches={branches}
+                  selectedBranchName={selectedBranchName}
+                  loading={branchLoading}
+                  error={branchError}
+                  disabled={selectedRepository === null}
+                  onSelect={(branch) => {
+                    setSelectedBranchName(branch.name);
+                    clearCommitState(
+                      setCommits,
+                      setSelectedCommitShas,
+                      setCommitError,
+                      setCommitLoading,
+                    );
+                    clearDraftState();
+                    setCommitLoading(true);
+                  }}
+                  onRetry={() => {
+                    if (selectedRepository === null) {
+                      return;
+                    }
 
-                  <a
-                    href={selectedRepository.htmlUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex rounded-md bg-action-secondary px-3 py-2 text-sm font-medium text-action-secondary-text hover:bg-action-secondary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                  >
-                    Open on GitHub
-                  </a>
-                </div>
-              ) : (
-                <p className="mt-4 text-sm text-secondary">
-                  Select a repository to see its details here.
-                </p>
-              )}
+                    setBranchLoading(true);
+                    setBranchError(null);
+                    clearCommitState(
+                      setCommits,
+                      setSelectedCommitShas,
+                      setCommitError,
+                      setCommitLoading,
+                    );
+                    clearDraftState();
+                  }}
+                />
 
-              <div className="mt-6 rounded-lg border border-border-muted bg-surface-muted px-4 py-3 text-sm text-secondary">
-                Branch and commit selection will unlock after a repository is chosen.
+                <CommitList
+                  repository={selectedRepository}
+                  branchName={selectedBranchName}
+                  commits={commits}
+                  selectedCommitShas={selectedCommitShas}
+                  loading={commitLoading}
+                  error={commitError}
+                  disabled={
+                    selectedRepository === null || selectedBranchName === null
+                  }
+                  onToggle={toggleCommit}
+                  onRetry={() => {
+                    if (
+                      selectedRepository === null ||
+                      selectedBranchName === null
+                    ) {
+                      return;
+                    }
+
+                    setCommitLoading(true);
+                    setCommitError(null);
+                    clearDraftState();
+                  }}
+                />
               </div>
-            </aside>
+            </div>
 
-            <BranchSelector
-              repository={selectedRepository}
-              branches={branches}
-              selectedBranchName={selectedBranchName}
-              loading={branchLoading}
-              error={branchError}
-              disabled={selectedRepository === null}
-              onSelect={(branch) => {
-                setSelectedBranchName(branch.name);
-                clearCommitState(
-                  setCommits,
-                  setSelectedCommitShas,
-                  setCommitError,
-                  setCommitLoading,
-                );
-                clearDraftState();
-                setCommitLoading(true);
-              }}
-              onRetry={() => {
-                if (selectedRepository === null) {
-                  return;
-                }
-
-                setBranchLoading(true);
-                setBranchError(null);
-                clearCommitState(
-                  setCommits,
-                  setSelectedCommitShas,
-                  setCommitError,
-                  setCommitLoading,
-                );
-                clearDraftState();
-              }}
-            />
-
-            <CommitList
+            <DraftEditor
+              draft={generatedDraft}
               repository={selectedRepository}
               branchName={selectedBranchName}
-              commits={commits}
-              selectedCommitShas={selectedCommitShas}
-              loading={commitLoading}
-              error={commitError}
-              disabled={selectedRepository === null || selectedBranchName === null}
-              onToggle={toggleCommit}
-              onRetry={() => {
-                if (selectedRepository === null || selectedBranchName === null) {
-                  return;
-                }
+              selectedCommits={selectedCommits}
+              loading={draftLoading}
+              error={draftError}
+              savedDraft={savedDraft}
+              hasUnsavedChanges={hasUnsavedDraftChanges}
+              saving={saveLoading}
+              saveError={saveError}
+              onGenerate={handleGenerateDraft}
+              onDraftChange={updateDraftField}
+              onSave={handleSaveDraft}
+            />
+          </>
+        ) : null}
 
-                setCommitLoading(true);
-                setCommitError(null);
-                clearDraftState();
+        {activeView === "drafts" ? (
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <PostList
+              posts={draftPosts}
+              selectedPostId={selectedPostId}
+              loading={postsLoading}
+              error={postsError}
+              eyebrow="Draft posts"
+              title="Edit saved drafts"
+              description="Draft posts can be opened for editing, deletion, or publishing."
+              emptyMessage="No draft posts yet. Create a new post and save it as a draft."
+              onOpenPost={openPostDetail}
+              onRetry={() => {
+                setPostsLoading(true);
+                setPostsError(null);
+                setPostsReloadKey((currentKey) => currentKey + 1);
               }}
             />
+
+            <PostDetail
+              post={selectedPost}
+              loading={postDetailLoading}
+              error={postDetailError}
+              editDraft={postEditDraft}
+              saving={postEditSaving}
+              saveError={postEditError}
+              deleteConfirming={postDeleteConfirming}
+              deleting={postDeleting}
+              deleteError={postDeleteError}
+              statusUpdating={postStatusUpdating}
+              statusError={postStatusError}
+              onStartEdit={startPostEdit}
+              onEditChange={updatePostEditField}
+              onCancelEdit={cancelPostEdit}
+              onSaveEdit={savePostEdit}
+              onRequestDelete={requestPostDelete}
+              onCancelDelete={cancelPostDelete}
+              onConfirmDelete={confirmPostDelete}
+              onPublish={publishPost}
+              onRetry={retryPostDetail}
+              onClose={closePostDetail}
+            />
           </div>
-        </div>
-
-        <DraftEditor
-          draft={generatedDraft}
-          repository={selectedRepository}
-          branchName={selectedBranchName}
-          selectedCommits={selectedCommits}
-          loading={draftLoading}
-          error={draftError}
-          savedDraft={savedDraft}
-          hasUnsavedChanges={hasUnsavedDraftChanges}
-          saving={saveLoading}
-          saveError={saveError}
-          onGenerate={handleGenerateDraft}
-          onDraftChange={updateDraftField}
-          onSave={handleSaveDraft}
-        />
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-          <PostList
-            posts={posts}
-            selectedPostId={selectedPostId}
-            loading={postsLoading}
-            error={postsError}
-            onOpenPost={openPostDetail}
-            onRetry={() => {
-              setPostsLoading(true);
-              setPostsError(null);
-              setPostsReloadKey((currentKey) => currentKey + 1);
-            }}
-          />
-
-          <PostDetail
-            post={selectedPost}
-            loading={postDetailLoading}
-            error={postDetailError}
-            editDraft={postEditDraft}
-            saving={postEditSaving}
-            saveError={postEditError}
-            deleteConfirming={postDeleteConfirming}
-            deleting={postDeleting}
-            deleteError={postDeleteError}
-            statusUpdating={postStatusUpdating}
-            statusError={postStatusError}
-            onStartEdit={startPostEdit}
-            onEditChange={updatePostEditField}
-            onCancelEdit={cancelPostEdit}
-            onSaveEdit={savePostEdit}
-            onRequestDelete={requestPostDelete}
-            onCancelDelete={cancelPostDelete}
-            onConfirmDelete={confirmPostDelete}
-            onPublish={publishPost}
-            onRetry={retryPostDetail}
-            onClose={closePostDetail}
-          />
-        </div>
-
-        <PublishedPostList
-          posts={publishedPosts}
-          loading={publishedPostsLoading}
-          error={publishedPostsError}
-          onRetry={() => {
-            setPublishedPostsLoading(true);
-            setPublishedPostsError(null);
-            setPublishedPostsReloadKey((currentKey) => currentKey + 1);
-          }}
-        />
+        ) : null}
       </div>
     </main>
   );

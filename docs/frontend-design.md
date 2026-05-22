@@ -34,13 +34,14 @@ Example usage direction:
 
 ## Screens
 
-### Saved Post List
+### Published Post List
 
-- Shows saved posts as cards.
-- Each card shows title, summary, repository, branch tag, status, and date.
-- The user can open details, edit, delete, or change publish status.
+- This is the first screen users see when opening the app.
+- Shows `published` posts as readable blog posts inside this service.
+- Fetches published posts through the server-side status filter defined in [docs/api-design.md](api-design.md).
+- Provides navigation to the new post creation flow and draft post list.
 
-### Post Creation
+### New Post Creation
 
 - Fetch and select a GitHub repository.
 - Fetch branches for the selected repository.
@@ -54,23 +55,34 @@ Example usage direction:
 - Save creates or updates a MongoDB-backed post.
 - Publish changes the post status to `published`.
 
-### Published Post View
+### Draft Post List
 
-- Shows `published` posts as readable blog posts inside this service.
-- Fetches published posts through the server-side status filter defined in [docs/api-design.md](api-design.md).
-- External blog platform publishing is not part of the MVP.
+- Shows saved `draft` posts as cards.
+- Each card shows title, summary, repository, branch tag, status, and date.
+- The user can open a draft detail page.
+
+### Draft Detail
+
+- Shows the selected draft content, metadata, and source commits.
+- The user can edit, delete, or publish the draft.
+- Publishing changes the post status to `published` and makes it visible in the published post list.
 
 ## State Flow
 
 ```text
-select repository
-  -> select branch
-  -> select commits
-  -> generate AI draft
-  -> edit draft
-  -> save as draft
-  -> change to published
-  -> display published post
+published post list
+  -> new post creation
+    -> select repository
+    -> select branch
+    -> select commits
+    -> generate AI draft
+    -> edit generated draft
+    -> save as draft
+  -> draft post list
+    -> draft detail
+    -> edit draft
+    -> change to published
+    -> display in published post list
 ```
 
 ## Components
@@ -80,8 +92,9 @@ select repository
 - `CommitList`: commit list and multi-select behavior.
 - `DraftEditor`: title, summary, and content editing.
 - `PostCard`: saved post card.
-- `PostList`: saved post list.
-- `PostDetail`: saved or published post detail.
+- `PostList`: draft post list.
+- `PostDetail`: draft detail, edit, delete, and publish actions.
+- `PublishedPostList`: first-screen published post list.
 
 ## Interaction Rules
 

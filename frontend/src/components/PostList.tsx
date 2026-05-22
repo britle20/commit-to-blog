@@ -6,6 +6,10 @@ type PostListProps = {
   selectedPostId: string | null;
   loading: boolean;
   error: string | null;
+  eyebrow?: string;
+  title?: string;
+  description?: string;
+  emptyMessage?: string;
   onOpenPost: (post: Post) => void;
   onRetry: () => void;
 };
@@ -15,6 +19,10 @@ export function PostList({
   selectedPostId,
   loading,
   error,
+  eyebrow = "Saved posts",
+  title = "Review saved drafts",
+  description = "Drafts and published posts saved in this service are listed here.",
+  emptyMessage = "No saved posts yet. Save a generated draft to add it here.",
   onOpenPost,
   onRetry,
 }: PostListProps) {
@@ -23,12 +31,10 @@ export function PostList({
       <div className="flex flex-col gap-4 border-b border-default px-6 py-5 text-left md:flex-row md:items-start md:justify-between">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-muted">
-            Saved posts
+            {eyebrow}
           </p>
-          <h2 className="mt-2 text-xl font-semibold">Review saved drafts</h2>
-          <p className="mt-2 text-sm text-secondary">
-            Drafts and published posts saved in this service are listed here.
-          </p>
+          <h2 className="mt-2 text-xl font-semibold">{title}</h2>
+          <p className="mt-2 text-sm text-secondary">{description}</p>
         </div>
 
         <button
@@ -65,9 +71,7 @@ export function PostList({
             </button>
           </div>
         ) : posts.length === 0 ? (
-          <p className="text-sm text-secondary">
-            No saved posts yet. Save a generated draft to add it here.
-          </p>
+          <p className="text-sm text-secondary">{emptyMessage}</p>
         ) : (
           <div className="grid gap-3">
             {posts.map((post) => (

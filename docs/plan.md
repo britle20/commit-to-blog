@@ -95,11 +95,10 @@ Related feature doc: [09 Saved and Published Post Views](features/09-saved-and-p
 
 ### 10. Verification and Documentation Updates
 
-- [ ] Check that GitHub and Gemini secrets are never exposed to frontend code.
-- [ ] Check that app components use semantic styling tokens instead of raw primitive tokens where possible.
-- [ ] Check the core API routes manually.
-- [ ] Check the main frontend workflow from repository selection to published post display.
-- [ ] Add PR or submission notes that summarize the AI workflow used during development.
+- [x] Check that GitHub and Gemini secrets are never exposed to frontend code.
+- [x] Check that app components use semantic styling tokens instead of raw primitive tokens where possible.
+- [x] Check the core API routes manually.
+- [x] Check the main frontend workflow from repository selection to published post display.
 
 ## MVP Scope
 
