@@ -5,13 +5,15 @@ import {
   deletePost,
   getPostById,
   listPosts,
+  updatePost,
+  updatePostStatus,
+} from "../services/post.service.js";
+import {
   parseCreatePostInput,
   parseStatusQuery,
   parseUpdatePostInput,
   parseUpdateStatusInput,
-  updatePost,
-  updatePostStatus,
-} from "../services/post.service.js";
+} from "../validators/request.validator.js";
 
 function readSingleString(value: string | string[] | undefined) {
   if (Array.isArray(value)) {

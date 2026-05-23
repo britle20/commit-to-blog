@@ -1,12 +1,10 @@
 import { env } from "../config/env.js";
 import { HttpError } from "../middleware/error.middleware.js";
-import type { CommitSummary, RepositorySummary } from "./github.normalizer.js";
-
-export type GeneratedDraft = {
-  title: string;
-  summary: string;
-  content: string;
-};
+import type {
+  CommitInput,
+  GeneratedDraft,
+  GenerateDraftInput,
+} from "../types/api.js";
 
 type GeminiResponse = {
   candidates?: Array<{
@@ -21,88 +19,10 @@ type GeminiResponse = {
   };
 };
 
-type GenerateDraftInput = {
-  repository: Pick<RepositorySummary, "owner" | "name" | "fullName">;
-  branch: string;
-  commits: CommitSummary[];
-};
-
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_MODEL = "gemini-2.5-flash";
 
-function ensureString(value: unknown, fieldName: string) {
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new HttpError(400, "Invalid request body", {
-      field: fieldName,
-    });
-  }
-
-  return value;
-}
-
-function ensureRepository(value: unknown) {
-  if (typeof value !== "object" || value === null) {
-    throw new HttpError(400, "Invalid request body", {
-      field: "repository",
-    });
-  }
-
-  const repository = value as Partial<RepositorySummary>;
-
-  return {
-    owner: ensureString(repository.owner, "repository.owner"),
-    name: ensureString(repository.name, "repository.name"),
-    fullName: ensureString(repository.fullName, "repository.fullName"),
-  };
-}
-
-function ensureCommits(value: unknown) {
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new HttpError(400, "Invalid request body", {
-      field: "commits",
-    });
-  }
-
-  return value.map((commit, index) => {
-    if (typeof commit !== "object" || commit === null) {
-      throw new HttpError(400, "Invalid request body", {
-        field: `commits[${index}]`,
-      });
-    }
-
-    const input = commit as Partial<CommitSummary>;
-
-    return {
-      sha: ensureString(input.sha, `commits[${index}].sha`),
-      message: ensureString(input.message, `commits[${index}].message`),
-      authorName: ensureString(
-        input.authorName,
-        `commits[${index}].authorName`,
-      ),
-      authorDate: ensureString(
-        input.authorDate,
-        `commits[${index}].authorDate`,
-      ),
-      htmlUrl: ensureString(input.htmlUrl, `commits[${index}].htmlUrl`),
-    };
-  });
-}
-
-export function parseGenerateDraftInput(body: unknown): GenerateDraftInput {
-  if (typeof body !== "object" || body === null) {
-    throw new HttpError(400, "Invalid request body");
-  }
-
-  return {
-    repository: ensureRepository(
-      (body as { repository?: unknown }).repository,
-    ),
-    branch: ensureString((body as { branch?: unknown }).branch, "branch"),
-    commits: ensureCommits((body as { commits?: unknown }).commits),
-  };
-}
-
-function buildCommitContext(commits: CommitSummary[]) {
+function buildCommitContext(commits: CommitInput[]) {
   if (commits.length === 0) {
     return ["Commits:", "- No commits were selected."].join("\n");
   }

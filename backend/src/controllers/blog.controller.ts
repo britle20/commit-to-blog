@@ -1,10 +1,8 @@
 import type { RequestHandler } from "express";
 
-import {
-  generateBlogDraft,
-  type GeneratedDraft,
-  parseGenerateDraftInput,
-} from "../services/gemini.service.js";
+import { generateBlogDraft } from "../services/gemini.service.js";
+import type { GeneratedDraft } from "../types/api.js";
+import { parseGenerateDraftInput } from "../validators/request.validator.js";
 
 type GenerateBlogResponse = {
   draft: GeneratedDraft;

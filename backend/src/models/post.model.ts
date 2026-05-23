@@ -1,5 +1,7 @@
 import mongoose, { Schema, model, type InferSchemaType } from "mongoose";
 
+import type { PostStatus } from "../types/api.js";
+
 const commitSummarySchema = new Schema(
   {
     sha: {
@@ -85,8 +87,8 @@ const postSchema = new Schema(
   },
 );
 
-export type PostStatus = "draft" | "published";
 export type PostDocument = InferSchemaType<typeof postSchema>;
+export type { PostStatus };
 
 export const PostModel =
   mongoose.models.Post ?? model("Post", postSchema);

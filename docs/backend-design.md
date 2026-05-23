@@ -29,6 +29,10 @@ backend/
       github.service.ts
       gemini.service.ts
       post.service.ts
+    types/
+      api.ts
+    validators/
+      request.validator.ts
     models/
       post.model.ts
     middleware/
@@ -40,6 +44,13 @@ backend/
 - `github.routes.ts`: repository, branch, and commit lookup endpoints.
 - `blog.routes.ts`: AI blog draft generation endpoint.
 - `post.routes.ts`: post CRUD and publish status endpoints.
+
+## Validation Responsibilities
+
+- Controllers validate and parse request bodies, query values, and route parameters before calling services.
+- Shared request validation lives in `validators/` so API input shapes do not drift across blog generation and post persistence flows.
+- Shared backend request and response DTO types live in `types/`.
+- Services should receive typed application inputs and focus on external API calls, database access, and business behavior.
 
 ## Service Responsibilities
 
