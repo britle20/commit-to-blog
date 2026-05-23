@@ -92,6 +92,7 @@ Related feature doc: [09 Saved and Published Post Views](features/09-saved-and-p
 - [x] Add delete flow with confirmation.
 - [x] Add status change from `draft` to `published`.
 - [x] Show `published` posts in the service as readable blog posts.
+- [x] Add server-side pagination for draft and published post lists.
 
 ### 10. Verification and Documentation Updates
 

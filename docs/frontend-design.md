@@ -38,7 +38,8 @@ Example usage direction:
 
 - This is the first screen users see when opening the app.
 - Shows `published` posts as readable blog posts inside this service.
-- Fetches published posts through the server-side status filter defined in [docs/api-design.md](api-design.md).
+- Fetches published posts through the server-side status filter and pagination contract defined in [docs/api-design.md](api-design.md).
+- Shows a bounded page of published posts and page controls when more posts exist.
 - Provides navigation to the new post creation flow and draft post list.
 
 ### New Post Creation
@@ -62,6 +63,7 @@ Example usage direction:
 
 - Shows saved `draft` posts as cards.
 - Each card shows title, summary, repository, branch tag, status, and date.
+- Fetches drafts through the server-side status filter and pagination contract.
 - The user can open a draft detail page.
 
 ### Draft Detail
@@ -97,6 +99,7 @@ published post list
 - `PostCard`: saved post card.
 - `PostList`: draft post list.
 - `PostDetail`: draft detail, edit, delete, and publish actions.
+- `PaginationControls`: previous and next controls for paginated post lists.
 - `PublishedPostList`: first-screen published post list.
 
 ## Interaction Rules

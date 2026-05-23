@@ -1,8 +1,10 @@
-import type { Post } from "../lib/posts";
+import type { PaginationMeta, Post } from "../lib/posts";
+import { PaginationControls } from "./PaginationControls";
 import { PostCard } from "./PostCard";
 
 type PostListProps = {
   posts: Post[];
+  pagination: PaginationMeta;
   selectedPostId: string | null;
   loading: boolean;
   error: string | null;
@@ -11,11 +13,13 @@ type PostListProps = {
   description?: string;
   emptyMessage?: string;
   onOpenPost: (post: Post) => void;
+  onPageChange: (page: number) => void;
   onRetry: () => void;
 };
 
 export function PostList({
   posts,
+  pagination,
   selectedPostId,
   loading,
   error,
@@ -24,6 +28,7 @@ export function PostList({
   description = "Drafts and published posts saved in this service are listed here.",
   emptyMessage = "No saved posts yet. Save a generated draft to add it here.",
   onOpenPost,
+  onPageChange,
   onRetry,
 }: PostListProps) {
   return (
@@ -73,16 +78,25 @@ export function PostList({
         ) : posts.length === 0 ? (
           <p className="text-sm text-secondary">{emptyMessage}</p>
         ) : (
-          <div className="grid gap-3">
-            {posts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                selected={selectedPostId === post.id}
-                onOpen={onOpenPost}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid gap-3">
+              {posts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  selected={selectedPostId === post.id}
+                  onOpen={onOpenPost}
+                />
+              ))}
+            </div>
+
+            <PaginationControls
+              pagination={pagination}
+              loading={loading}
+              itemLabel="draft posts"
+              onPageChange={onPageChange}
+            />
+          </>
         )}
       </div>
     </section>

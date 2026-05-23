@@ -1,17 +1,22 @@
 import { formatDate } from "../lib/dates";
-import type { Post } from "../lib/posts";
+import type { PaginationMeta, Post } from "../lib/posts";
+import { PaginationControls } from "./PaginationControls";
 
 type PublishedPostListProps = {
   posts: Post[];
+  pagination: PaginationMeta;
   loading: boolean;
   error: string | null;
+  onPageChange: (page: number) => void;
   onRetry: () => void;
 };
 
 export function PublishedPostList({
   posts,
+  pagination,
   loading,
   error,
+  onPageChange,
   onRetry,
 }: PublishedPostListProps) {
   return (
@@ -66,39 +71,48 @@ export function PublishedPostList({
             No published posts yet. Publish a saved draft to show it here.
           </p>
         ) : (
-          <div className="grid gap-6">
-            {posts.map((post) => (
-              <article
-                key={post.id}
-                className="rounded-lg border border-default bg-surface px-5 py-4"
-              >
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                  <span className="rounded-full bg-status-success-subtle px-2.5 py-1 font-medium text-status-success-text">
-                    Published
-                  </span>
-                  <span className="rounded-full bg-surface-muted px-2.5 py-1 font-medium">
-                    {post.repository.fullName}
-                  </span>
-                  <span className="rounded-full bg-surface-muted px-2.5 py-1 font-medium">
-                    {post.branch}
-                  </span>
-                  <span className="rounded-full bg-surface-muted px-2.5 py-1 font-medium">
-                    {formatDate(post.publishedAt ?? post.updatedAt)}
-                  </span>
-                </div>
+          <>
+            <div className="grid gap-6">
+              {posts.map((post) => (
+                <article
+                  key={post.id}
+                  className="rounded-lg border border-default bg-surface px-5 py-4"
+                >
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                    <span className="rounded-full bg-status-success-subtle px-2.5 py-1 font-medium text-status-success-text">
+                      Published
+                    </span>
+                    <span className="rounded-full bg-surface-muted px-2.5 py-1 font-medium">
+                      {post.repository.fullName}
+                    </span>
+                    <span className="rounded-full bg-surface-muted px-2.5 py-1 font-medium">
+                      {post.branch}
+                    </span>
+                    <span className="rounded-full bg-surface-muted px-2.5 py-1 font-medium">
+                      {formatDate(post.publishedAt ?? post.updatedAt)}
+                    </span>
+                  </div>
 
-                <h3 className="mt-4 text-2xl font-semibold text-primary">
-                  {post.title}
-                </h3>
-                <p className="mt-3 text-sm leading-6 text-secondary">
-                  {post.summary}
-                </p>
-                <div className="mt-5 whitespace-pre-wrap text-sm leading-7 text-primary">
-                  {post.content}
-                </div>
-              </article>
-            ))}
-          </div>
+                  <h3 className="mt-4 text-2xl font-semibold text-primary">
+                    {post.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-6 text-secondary">
+                    {post.summary}
+                  </p>
+                  <div className="mt-5 whitespace-pre-wrap text-sm leading-7 text-primary">
+                    {post.content}
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <PaginationControls
+              pagination={pagination}
+              loading={loading}
+              itemLabel="published posts"
+              onPageChange={onPageChange}
+            />
+          </>
         )}
       </div>
     </section>

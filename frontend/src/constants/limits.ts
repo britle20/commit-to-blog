@@ -1,1 +1,3 @@
 export const MAX_SELECTED_COMMITS = 12;
+export const DRAFT_POSTS_PAGE_SIZE = 10;
+export const PUBLISHED_POSTS_PAGE_SIZE = 5;

@@ -1,9 +1,14 @@
 import { HttpError } from "../middleware/error.middleware.js";
-import { MAX_SELECTED_COMMITS } from "../config/limits.js";
+import {
+  DEFAULT_POST_LIST_LIMIT,
+  MAX_POST_LIST_LIMIT,
+  MAX_SELECTED_COMMITS,
+} from "../config/limits.js";
 import type {
   CommitInput,
   CreatePostInput,
   GenerateDraftInput,
+  PostListQuery,
   PostStatus,
   RepositoryInput,
   UpdatePostInput,
@@ -92,6 +97,47 @@ function ensurePostStatus(value: unknown, message: string) {
   return value as PostStatus;
 }
 
+function readSingleQueryValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
+}
+
+function parsePositiveIntegerQuery(
+  value: unknown,
+  fieldName: string,
+  defaultValue: number,
+  maxValue?: number,
+) {
+  const singleValue = readSingleQueryValue(value);
+
+  if (singleValue === undefined) {
+    return defaultValue;
+  }
+
+  if (typeof singleValue !== "string" || !/^[1-9]\d*$/.test(singleValue)) {
+    throw new HttpError(400, "Invalid pagination query", {
+      field: fieldName,
+    });
+  }
+
+  const parsedValue = Number(singleValue);
+
+  if (
+    !Number.isSafeInteger(parsedValue) ||
+    (maxValue !== undefined && parsedValue > maxValue)
+  ) {
+    throw new HttpError(400, "Invalid pagination query", {
+      field: fieldName,
+      ...(maxValue !== undefined ? { max: maxValue } : {}),
+    });
+  }
+
+  return parsedValue;
+}
+
 export function parseGenerateDraftInput(body: unknown): GenerateDraftInput {
   const input = ensureRequestBody(body);
 
@@ -139,15 +185,34 @@ export function parseUpdatePostInput(body: unknown): UpdatePostInput {
 }
 
 export function parseStatusQuery(status: unknown) {
-  if (status === undefined) {
+  const singleStatus = readSingleQueryValue(status);
+
+  if (singleStatus === undefined) {
     return undefined;
   }
 
-  if (status !== "draft" && status !== "published") {
+  if (singleStatus !== "draft" && singleStatus !== "published") {
     throw new HttpError(400, "Invalid post status filter");
   }
 
-  return status as PostStatus;
+  return singleStatus as PostStatus;
+}
+
+export function parsePostListQuery(query: {
+  status?: unknown;
+  page?: unknown;
+  limit?: unknown;
+}): PostListQuery {
+  return {
+    status: parseStatusQuery(query.status),
+    page: parsePositiveIntegerQuery(query.page, "page", 1),
+    limit: parsePositiveIntegerQuery(
+      query.limit,
+      "limit",
+      DEFAULT_POST_LIST_LIMIT,
+      MAX_POST_LIST_LIMIT,
+    ),
+  };
 }
 
 export function parseUpdateStatusInput(body: unknown) {

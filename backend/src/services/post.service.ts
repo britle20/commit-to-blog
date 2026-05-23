@@ -5,6 +5,8 @@ import { PostModel } from "../models/post.model.js";
 import type {
   CommitInput,
   CreatePostInput,
+  PaginationMeta,
+  PostListQuery,
   PostStatus,
   RepositoryInput,
   UpdatePostInput,
@@ -58,14 +60,30 @@ function ensurePostId(postId: string) {
   }
 }
 
-export async function listPosts(status?: PostStatus) {
-  const posts = await PostModel.find(
-    status === undefined ? {} : { status },
-  ).sort({
-    updatedAt: -1,
-  });
+export async function listPosts(query: PostListQuery) {
+  const filter = query.status === undefined ? {} : { status: query.status };
+  const total = await PostModel.countDocuments(filter);
+  const totalPages = Math.ceil(total / query.limit);
+  const page = totalPages === 0 ? 1 : Math.min(query.page, totalPages);
+  const pagination: PaginationMeta = {
+    page,
+    limit: query.limit,
+    total,
+    totalPages,
+    hasPreviousPage: page > 1,
+    hasNextPage: totalPages > page,
+  };
+  const posts = await PostModel.find(filter)
+    .sort({
+      updatedAt: -1,
+    })
+    .skip((page - 1) * query.limit)
+    .limit(query.limit);
 
-  return posts.map((post) => normalizePost(post.toObject()));
+  return {
+    posts: posts.map((post) => normalizePost(post.toObject())),
+    pagination,
+  };
 }
 
 export async function getPostById(postId: string) {

@@ -87,15 +87,32 @@ type GenerateBlogResponse = {
 
 ### `GET /api/posts`
 
-Returns saved posts. The endpoint supports server-side `status=draft` or `status=published` query filtering.
+Returns saved posts. The endpoint supports server-side `status=draft` or `status=published` query filtering and paginates results with `page` and `limit`.
 
-The published post view should call `GET /api/posts?status=published` instead of fetching all posts and filtering on the client.
+The published post view should call `GET /api/posts?status=published&page=1&limit=5` instead of fetching all posts and filtering on the client. Draft lists should use `status=draft`.
+
+Pagination rules:
+
+- `page` defaults to `1`.
+- `limit` defaults to `10`.
+- `limit` must be between `1` and `50`.
+- Results are sorted by latest update first.
 
 ```ts
 type PostStatusFilter = "draft" | "published";
 
+type PaginationMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+};
+
 type PostsResponse = {
   posts: Post[];
+  pagination: PaginationMeta;
 };
 ```
 
@@ -158,5 +175,6 @@ Deletes a saved post.
 - A missing post id returns `404`.
 - An unknown route returns `404` with a JSON error response.
 - An invalid post `status` filter returns `400`.
+- Invalid post list pagination query values return `400`.
 - Invalid request bodies return `400`.
 - Unexpected server errors return `500` with a generic message.

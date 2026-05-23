@@ -14,17 +14,22 @@ import { PostDetail } from "./components/PostDetail";
 import { PostList } from "./components/PostList";
 import { PublishedPostList } from "./components/PublishedPostList";
 import { RepositorySelector } from "./components/RepositorySelector";
-import { MAX_SELECTED_COMMITS } from "./constants/limits";
+import {
+  DRAFT_POSTS_PAGE_SIZE,
+  MAX_SELECTED_COMMITS,
+  PUBLISHED_POSTS_PAGE_SIZE,
+} from "./constants/limits";
 import { getErrorMessage } from "./lib/api";
 import { generateBlogDraft, type GeneratedDraft } from "./lib/blog";
 import {
   createDraftPost,
   deletePost,
   fetchPost,
-  fetchPosts,
+  fetchDraftPosts,
   fetchPublishedPosts,
   updatePost,
   updatePostStatus,
+  type PaginationMeta,
   type Post,
   type PostEditInput,
 } from "./lib/posts";
@@ -45,6 +50,17 @@ function syncPublishedPost(posts: Post[], nextPost: Post) {
   return nextPost.status === "published"
     ? upsertPost(posts, nextPost)
     : posts.filter((post) => post.id !== nextPost.id);
+}
+
+function createEmptyPagination(limit: number): PaginationMeta {
+  return {
+    page: 1,
+    limit,
+    total: 0,
+    totalPages: 0,
+    hasPreviousPage: false,
+    hasNextPage: false,
+  };
 }
 
 type AppView = "published" | "compose" | "drafts";
@@ -675,8 +691,17 @@ function App() {
     initialComposeState,
   );
   const [posts, setPosts] = useState<Post[]>([]);
+  const [postsPage, setPostsPage] = useState(1);
+  const [postsPagination, setPostsPagination] = useState<PaginationMeta>(() =>
+    createEmptyPagination(DRAFT_POSTS_PAGE_SIZE),
+  );
   const [postsReloadKey, setPostsReloadKey] = useState(0);
   const [publishedPosts, setPublishedPosts] = useState<Post[]>([]);
+  const [publishedPostsPage, setPublishedPostsPage] = useState(1);
+  const [publishedPostsPagination, setPublishedPostsPagination] =
+    useState<PaginationMeta>(() =>
+      createEmptyPagination(PUBLISHED_POSTS_PAGE_SIZE),
+    );
   const [publishedPostsReloadKey, setPublishedPostsReloadKey] = useState(0);
   const [postDetailState, postDetailDispatch] = useReducer(
     postDetailReducer,
@@ -763,10 +788,20 @@ function App() {
   useEffect(() => {
     const controller = new AbortController();
 
-    void fetchPosts(controller.signal)
-      .then((items) => {
+    void fetchDraftPosts(
+      {
+        page: postsPage,
+        limit: DRAFT_POSTS_PAGE_SIZE,
+      },
+      controller.signal,
+    )
+      .then(({ posts: items, pagination }) => {
         if (!controller.signal.aborted) {
           setPosts(items);
+          setPostsPagination(pagination);
+          if (pagination.page !== postsPage) {
+            setPostsPage(pagination.page);
+          }
           postDetailDispatch({ type: "SYNC_POST_LIST", posts: items });
         }
       })
@@ -786,15 +821,25 @@ function App() {
     return () => {
       controller.abort();
     };
-  }, [postsReloadKey]);
+  }, [postsPage, postsReloadKey]);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    void fetchPublishedPosts(controller.signal)
-      .then((items) => {
+    void fetchPublishedPosts(
+      {
+        page: publishedPostsPage,
+        limit: PUBLISHED_POSTS_PAGE_SIZE,
+      },
+      controller.signal,
+    )
+      .then(({ posts: items, pagination }) => {
         if (!controller.signal.aborted) {
           setPublishedPosts(items);
+          setPublishedPostsPagination(pagination);
+          if (pagination.page !== publishedPostsPage) {
+            setPublishedPostsPage(pagination.page);
+          }
         }
       })
       .catch((requestError: unknown) => {
@@ -813,7 +858,7 @@ function App() {
     return () => {
       controller.abort();
     };
-  }, [publishedPostsReloadKey]);
+  }, [publishedPostsPage, publishedPostsReloadKey]);
 
   useEffect(() => {
     if (selectedPostId === null) {
@@ -901,6 +946,40 @@ function App() {
     () => posts.filter((post) => post.status === "draft"),
     [posts],
   );
+
+  function reloadDraftPosts({ resetPage = false } = {}) {
+    setPostsLoading(true);
+    setPostsError(null);
+
+    if (resetPage) {
+      setPostsPage(1);
+    }
+
+    setPostsReloadKey((currentKey) => currentKey + 1);
+  }
+
+  function reloadPublishedPosts({ resetPage = false } = {}) {
+    setPublishedPostsLoading(true);
+    setPublishedPostsError(null);
+
+    if (resetPage) {
+      setPublishedPostsPage(1);
+    }
+
+    setPublishedPostsReloadKey((currentKey) => currentKey + 1);
+  }
+
+  function requestDraftPostsPage(page: number) {
+    setPostsLoading(true);
+    setPostsError(null);
+    setPostsPage(page);
+  }
+
+  function requestPublishedPostsPage(page: number) {
+    setPublishedPostsLoading(true);
+    setPublishedPostsError(null);
+    setPublishedPostsPage(page);
+  }
 
   function toggleCommit(commit: CommitSummary) {
     abortDraftRequests();
@@ -1095,6 +1174,9 @@ function App() {
             syncPublishedPost(currentPosts, post),
           );
           postDetailDispatch({ type: "SYNC_SELECTED_POST", post });
+          if (post.status === "draft") {
+            reloadDraftPosts({ resetPage: true });
+          }
           setPostsError(null);
         }
       })
@@ -1190,6 +1272,11 @@ function App() {
             syncPublishedPost(currentPosts, post),
           );
           composeDispatch({ type: "SYNC_POST_EDIT", post });
+          if (post.status === "draft") {
+            reloadDraftPosts({ resetPage: true });
+          } else {
+            reloadPublishedPosts({ resetPage: true });
+          }
         }
       })
       .catch((requestError: unknown) => {
@@ -1255,6 +1342,8 @@ function App() {
           );
           postDetailDispatch({ type: "POST_DELETE_SUCCEEDED" });
           composeDispatch({ type: "SYNC_DELETED_POST", postId: targetPostId });
+          reloadDraftPosts();
+          reloadPublishedPosts();
         }
       })
       .catch((requestError: unknown) => {
@@ -1295,6 +1384,8 @@ function App() {
           setPosts((currentPosts) => upsertPost(currentPosts, post));
           setPublishedPosts((currentPosts) => upsertPost(currentPosts, post));
           setActiveView("published");
+          reloadDraftPosts();
+          reloadPublishedPosts({ resetPage: true });
           setPublishedPostsError(null);
           composeDispatch({ type: "SYNC_SAVED_DRAFT", post });
         }
@@ -1386,13 +1477,11 @@ function App() {
         {activeView === "published" ? (
           <PublishedPostList
             posts={publishedPosts}
+            pagination={publishedPostsPagination}
             loading={publishedPostsLoading}
             error={publishedPostsError}
-            onRetry={() => {
-              setPublishedPostsLoading(true);
-              setPublishedPostsError(null);
-              setPublishedPostsReloadKey((currentKey) => currentKey + 1);
-            }}
+            onPageChange={requestPublishedPostsPage}
+            onRetry={() => reloadPublishedPosts()}
           />
         ) : null}
 
@@ -1515,6 +1604,7 @@ function App() {
           <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
             <PostList
               posts={draftPosts}
+              pagination={postsPagination}
               selectedPostId={selectedPostId}
               loading={postsLoading}
               error={postsError}
@@ -1523,11 +1613,8 @@ function App() {
               description="Draft posts can be opened for editing, deletion, or publishing."
               emptyMessage="No draft posts yet. Create a new post and save it as a draft."
               onOpenPost={openPostDetail}
-              onRetry={() => {
-                setPostsLoading(true);
-                setPostsError(null);
-                setPostsReloadKey((currentKey) => currentKey + 1);
-              }}
+              onPageChange={requestDraftPostsPage}
+              onRetry={() => reloadDraftPosts()}
             />
 
             <PostDetail

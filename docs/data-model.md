@@ -91,6 +91,21 @@ type Post = {
 };
 ```
 
+## Pagination
+
+Paginated list responses include metadata so the frontend can render stable page controls without inferring totals from the current page.
+
+```ts
+type PaginationMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+};
+```
+
 ## Status Meaning
 
 - `draft`: saved, but not shown in the published post view.

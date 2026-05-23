@@ -21,6 +21,25 @@ export type Post = {
 
 export type PostEditInput = Pick<Post, "title" | "summary" | "content">;
 
+export type PaginationMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+};
+
+export type PostListResult = {
+  posts: Post[];
+  pagination: PaginationMeta;
+};
+
+type PostListOptions = {
+  page?: number;
+  limit?: number;
+};
+
 type CreatePostInput = {
   title: string;
   summary: string;
@@ -50,13 +69,26 @@ type UpdatePostStatusResponse = {
 
 type ListPostsResponse = {
   posts: Post[];
+  pagination: PaginationMeta;
 };
 
-async function fetchPostList(status?: PostStatus, signal?: AbortSignal) {
+async function fetchPostList(
+  status: PostStatus | undefined,
+  options: PostListOptions,
+  signal?: AbortSignal,
+): Promise<PostListResult> {
   const searchParams = new URLSearchParams();
 
   if (status !== undefined) {
     searchParams.set("status", status);
+  }
+
+  if (options.page !== undefined) {
+    searchParams.set("page", String(options.page));
+  }
+
+  if (options.limit !== undefined) {
+    searchParams.set("limit", String(options.limit));
   }
 
   const queryString = searchParams.toString();
@@ -71,15 +103,31 @@ async function fetchPostList(status?: PostStatus, signal?: AbortSignal) {
 
   const body = (await response.json()) as ListPostsResponse;
 
-  return body.posts;
+  return {
+    posts: body.posts,
+    pagination: body.pagination,
+  };
 }
 
-export async function fetchPosts(signal?: AbortSignal) {
-  return fetchPostList(undefined, signal);
+export async function fetchPosts(
+  options: PostListOptions = {},
+  signal?: AbortSignal,
+) {
+  return fetchPostList(undefined, options, signal);
 }
 
-export async function fetchPublishedPosts(signal?: AbortSignal) {
-  return fetchPostList("published", signal);
+export async function fetchDraftPosts(
+  options: PostListOptions = {},
+  signal?: AbortSignal,
+) {
+  return fetchPostList("draft", options, signal);
+}
+
+export async function fetchPublishedPosts(
+  options: PostListOptions = {},
+  signal?: AbortSignal,
+) {
+  return fetchPostList("published", options, signal);
 }
 
 export async function fetchPost(postId: string, signal?: AbortSignal) {

@@ -21,6 +21,8 @@
 - Blog draft generation and post creation reject requests with more than 12 commits.
 - Post create, list, detail, update, status update, and delete work correctly.
 - Post status filtering returns only posts with the requested status.
+- Post list pagination returns bounded results with pagination metadata.
+- Invalid post list `page` or `limit` query values return `400`.
 
 ## Frontend Checks
 
@@ -32,7 +34,8 @@
 - The generated draft is editable.
 - Saved posts appear in the list.
 - A `published` post appears in the published post view.
-- Published post view fetches posts through the server-side status filter defined in [docs/api-design.md](api-design.md).
+- Published post view fetches posts through the server-side status filter and pagination contract defined in [docs/api-design.md](api-design.md).
+- Published and draft post lists show pagination controls when more pages exist.
 - App components use semantic Tailwind token utilities instead of raw primitive color utilities where possible.
 
 ## Manual Completion Checklist

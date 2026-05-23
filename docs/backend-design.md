@@ -50,6 +50,7 @@ backend/
 ## Validation Responsibilities
 
 - Controllers validate and parse request bodies, query values, and route parameters before calling services.
+- Post list controllers validate `status`, `page`, and `limit` query values before calling services.
 - Shared request validation lives in `validators/` so API input shapes do not drift across blog generation and post persistence flows.
 - Shared backend request and response DTO types live in `types/`.
 - Services should receive typed application inputs and focus on external API calls, database access, and business behavior.
@@ -68,6 +69,7 @@ backend/
   - Uses bounded commit and patch context limits from backend configuration.
 - `post.service.ts`
   - Handles MongoDB post create, read, update, delete, and status changes.
+  - Applies server-side post list filtering and pagination.
 
 ## Environment Validation
 

@@ -10,7 +10,7 @@ import {
 } from "../services/post.service.js";
 import {
   parseCreatePostInput,
-  parseStatusQuery,
+  parsePostListQuery,
   parseUpdatePostInput,
   parseUpdateStatusInput,
 } from "../validators/request.validator.js";
@@ -24,9 +24,9 @@ function readSingleString(value: string | string[] | undefined) {
 }
 
 export const listPostsHandler: RequestHandler = async (req, res) => {
-  const posts = await listPosts(parseStatusQuery(req.query.status));
+  const result = await listPosts(parsePostListQuery(req.query));
 
-  res.json({ posts });
+  res.json(result);
 };
 
 export const getPostHandler: RequestHandler = async (req, res) => {

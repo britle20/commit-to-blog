@@ -24,6 +24,21 @@ export type CommitFileChange = {
 
 export type PostStatus = "draft" | "published";
 
+export type PostListQuery = {
+  status?: PostStatus;
+  page: number;
+  limit: number;
+};
+
+export type PaginationMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+};
+
 export type GeneratedDraft = {
   title: string;
   summary: string;
