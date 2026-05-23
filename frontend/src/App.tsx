@@ -386,6 +386,273 @@ function composeReducer(
   }
 }
 
+type PostDetailState = {
+  selectedPostId: string | null;
+  selectedPost: Post | null;
+  postDetailReloadKey: number;
+  postEditDraft: PostEditInput | null;
+  postDeleteConfirming: boolean;
+  postDetailLoading: boolean;
+  postEditSaving: boolean;
+  postDeleting: boolean;
+  postStatusUpdating: boolean;
+  postDetailError: string | null;
+  postEditError: string | null;
+  postDeleteError: string | null;
+  postStatusError: string | null;
+};
+
+type PostDetailAction =
+  | { type: "OPEN_POST_DETAIL"; post: Post }
+  | { type: "RETRY_POST_DETAIL" }
+  | { type: "CLOSE_POST_DETAIL" }
+  | { type: "POST_DETAIL_LOADED"; post: Post }
+  | { type: "POST_DETAIL_FAILED"; error: string }
+  | { type: "SYNC_SELECTED_POST"; post: Post }
+  | { type: "SYNC_POST_LIST"; posts: Post[] }
+  | { type: "START_POST_EDIT" }
+  | { type: "UPDATE_POST_EDIT_FIELD"; field: keyof PostEditInput; value: string }
+  | { type: "CANCEL_POST_EDIT" }
+  | { type: "START_POST_EDIT_SAVE" }
+  | { type: "POST_EDIT_SAVED"; post: Post }
+  | { type: "POST_EDIT_FAILED"; error: string }
+  | { type: "REQUEST_POST_DELETE" }
+  | { type: "CANCEL_POST_DELETE" }
+  | { type: "START_POST_DELETE" }
+  | { type: "POST_DELETE_SUCCEEDED" }
+  | { type: "POST_DELETE_FAILED"; error: string }
+  | { type: "START_POST_PUBLISH" }
+  | { type: "POST_PUBLISHED"; post: Post }
+  | { type: "POST_PUBLISH_FAILED"; error: string };
+
+const initialPostDetailState: PostDetailState = {
+  selectedPostId: null,
+  selectedPost: null,
+  postDetailReloadKey: 0,
+  postEditDraft: null,
+  postDeleteConfirming: false,
+  postDetailLoading: false,
+  postEditSaving: false,
+  postDeleting: false,
+  postStatusUpdating: false,
+  postDetailError: null,
+  postEditError: null,
+  postDeleteError: null,
+  postStatusError: null,
+};
+
+function clearPostDetailFields(state: PostDetailState): PostDetailState {
+  return {
+    ...state,
+    selectedPostId: null,
+    selectedPost: null,
+    postDetailLoading: false,
+    postDetailError: null,
+    postEditDraft: null,
+    postEditSaving: false,
+    postEditError: null,
+    postDeleteConfirming: false,
+    postDeleting: false,
+    postDeleteError: null,
+    postStatusUpdating: false,
+    postStatusError: null,
+  };
+}
+
+function postDetailReducer(
+  state: PostDetailState,
+  action: PostDetailAction,
+): PostDetailState {
+  switch (action.type) {
+    case "OPEN_POST_DETAIL":
+      return {
+        ...state,
+        selectedPostId: action.post.id,
+        selectedPost: action.post,
+        postDetailLoading: true,
+        postDetailError: null,
+        postEditDraft: null,
+        postEditSaving: false,
+        postEditError: null,
+        postDeleteConfirming: false,
+        postDeleting: false,
+        postDeleteError: null,
+        postStatusUpdating: false,
+        postStatusError: null,
+        postDetailReloadKey: state.postDetailReloadKey + 1,
+      };
+
+    case "RETRY_POST_DETAIL":
+      return {
+        ...state,
+        postDetailLoading: true,
+        postDetailError: null,
+        postDetailReloadKey: state.postDetailReloadKey + 1,
+      };
+
+    case "CLOSE_POST_DETAIL":
+      return clearPostDetailFields(state);
+
+    case "POST_DETAIL_LOADED":
+      return {
+        ...state,
+        selectedPost: action.post,
+        postDetailLoading: false,
+        postDetailError: null,
+      };
+
+    case "POST_DETAIL_FAILED":
+      return {
+        ...state,
+        postDetailLoading: false,
+        postDetailError: action.error,
+      };
+
+    case "SYNC_SELECTED_POST":
+      return {
+        ...state,
+        selectedPost:
+          state.selectedPost?.id === action.post.id ? action.post : state.selectedPost,
+      };
+
+    case "SYNC_POST_LIST":
+      return {
+        ...state,
+        selectedPost:
+          state.selectedPost === null
+            ? state.selectedPost
+            : action.posts.find((post) => post.id === state.selectedPost?.id) ??
+              state.selectedPost,
+      };
+
+    case "START_POST_EDIT":
+      if (state.selectedPost === null) {
+        return state;
+      }
+
+      return {
+        ...state,
+        postEditDraft: {
+          title: state.selectedPost.title,
+          summary: state.selectedPost.summary,
+          content: state.selectedPost.content,
+        },
+        postEditError: null,
+        postDeleteConfirming: false,
+        postDeleteError: null,
+        postStatusError: null,
+      };
+
+    case "UPDATE_POST_EDIT_FIELD":
+      return {
+        ...state,
+        postEditDraft:
+          state.postEditDraft === null
+            ? state.postEditDraft
+            : {
+                ...state.postEditDraft,
+                [action.field]: action.value,
+              },
+        postEditError: null,
+      };
+
+    case "CANCEL_POST_EDIT":
+      return {
+        ...state,
+        postEditDraft: null,
+        postEditError: null,
+      };
+
+    case "START_POST_EDIT_SAVE":
+      return {
+        ...state,
+        postEditSaving: true,
+        postEditError: null,
+      };
+
+    case "POST_EDIT_SAVED":
+      return {
+        ...state,
+        selectedPost: action.post,
+        postDetailError: null,
+        postEditDraft: null,
+        postEditSaving: false,
+        postEditError: null,
+      };
+
+    case "POST_EDIT_FAILED":
+      return {
+        ...state,
+        postEditSaving: false,
+        postEditError: action.error,
+      };
+
+    case "REQUEST_POST_DELETE":
+      return {
+        ...state,
+        postEditDraft: null,
+        postEditError: null,
+        postDeleteConfirming: true,
+        postDeleteError: null,
+        postStatusError: null,
+      };
+
+    case "CANCEL_POST_DELETE":
+      return {
+        ...state,
+        postDeleteConfirming: false,
+        postDeleteError: null,
+      };
+
+    case "START_POST_DELETE":
+      return {
+        ...state,
+        postDeleting: true,
+        postDeleteError: null,
+      };
+
+    case "POST_DELETE_SUCCEEDED":
+      return clearPostDetailFields(state);
+
+    case "POST_DELETE_FAILED":
+      return {
+        ...state,
+        postDeleting: false,
+        postDeleteError: action.error,
+      };
+
+    case "START_POST_PUBLISH":
+      return {
+        ...state,
+        postStatusUpdating: true,
+        postStatusError: null,
+        postEditDraft: null,
+        postEditError: null,
+        postDeleteConfirming: false,
+        postDeleteError: null,
+      };
+
+    case "POST_PUBLISHED":
+      return {
+        ...state,
+        selectedPost: action.post,
+        postDetailError: null,
+        postStatusUpdating: false,
+        postStatusError: null,
+      };
+
+    case "POST_PUBLISH_FAILED":
+      return {
+        ...state,
+        postStatusUpdating: false,
+        postStatusError: action.error,
+      };
+
+    default:
+      return state;
+  }
+}
+
 function App() {
   const [activeView, setActiveView] = useState<AppView>("published");
   const [repositories, setRepositories] = useState<RepositorySummary[]>([]);
@@ -397,29 +664,18 @@ function App() {
   const [postsReloadKey, setPostsReloadKey] = useState(0);
   const [publishedPosts, setPublishedPosts] = useState<Post[]>([]);
   const [publishedPostsReloadKey, setPublishedPostsReloadKey] = useState(0);
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [postDetailReloadKey, setPostDetailReloadKey] = useState(0);
-  const [postEditDraft, setPostEditDraft] = useState<PostEditInput | null>(
-    null,
+  const [postDetailState, postDetailDispatch] = useReducer(
+    postDetailReducer,
+    initialPostDetailState,
   );
-  const [postDeleteConfirming, setPostDeleteConfirming] = useState(false);
   const [loading, setLoading] = useState(true);
   const [postsLoading, setPostsLoading] = useState(true);
   const [publishedPostsLoading, setPublishedPostsLoading] = useState(true);
-  const [postDetailLoading, setPostDetailLoading] = useState(false);
-  const [postEditSaving, setPostEditSaving] = useState(false);
-  const [postDeleting, setPostDeleting] = useState(false);
-  const [postStatusUpdating, setPostStatusUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [postsError, setPostsError] = useState<string | null>(null);
   const [publishedPostsError, setPublishedPostsError] = useState<string | null>(
     null,
   );
-  const [postDetailError, setPostDetailError] = useState<string | null>(null);
-  const [postEditError, setPostEditError] = useState<string | null>(null);
-  const [postDeleteError, setPostDeleteError] = useState<string | null>(null);
-  const [postStatusError, setPostStatusError] = useState<string | null>(null);
   const draftControllerRef = useRef<AbortController | null>(null);
   const saveControllerRef = useRef<AbortController | null>(null);
   const postEditControllerRef = useRef<AbortController | null>(null);
@@ -443,6 +699,21 @@ function App() {
     draftError,
     saveError,
   } = composeState;
+  const {
+    selectedPostId,
+    selectedPost,
+    postDetailReloadKey,
+    postEditDraft,
+    postDeleteConfirming,
+    postDetailLoading,
+    postEditSaving,
+    postDeleting,
+    postStatusUpdating,
+    postDetailError,
+    postEditError,
+    postDeleteError,
+    postStatusError,
+  } = postDetailState;
 
   const abortDraftRequests = useCallback(() => {
     draftControllerRef.current?.abort();
@@ -455,6 +726,15 @@ function App() {
     abortDraftRequests();
     composeDispatch({ type: "CLEAR_DRAFT" });
   }, [abortDraftRequests]);
+
+  const abortPostDetailRequests = useCallback(() => {
+    postEditControllerRef.current?.abort();
+    postEditControllerRef.current = null;
+    postDeleteControllerRef.current?.abort();
+    postDeleteControllerRef.current = null;
+    postStatusControllerRef.current?.abort();
+    postStatusControllerRef.current = null;
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -473,15 +753,7 @@ function App() {
       .then((items) => {
         if (!controller.signal.aborted) {
           setPosts(items);
-          setSelectedPost((currentPost) => {
-            if (currentPost === null) {
-              return currentPost;
-            }
-
-            return (
-              items.find((post) => post.id === currentPost.id) ?? currentPost
-            );
-          });
+          postDetailDispatch({ type: "SYNC_POST_LIST", posts: items });
         }
       })
       .catch((requestError: unknown) => {
@@ -539,26 +811,21 @@ function App() {
     void fetchPost(selectedPostId, controller.signal)
       .then((post) => {
         if (!controller.signal.aborted) {
-          setSelectedPost(post);
+          postDetailDispatch({ type: "POST_DETAIL_LOADED", post });
           setPosts((currentPosts) => upsertPost(currentPosts, post));
           setPublishedPosts((currentPosts) =>
             syncPublishedPost(currentPosts, post),
           );
-          setPostDetailError(null);
         }
       })
       .catch((requestError: unknown) => {
         if (!controller.signal.aborted) {
-          setPostDetailError(
-            getErrorMessage(requestError, "Failed to load post details."),
-          );
+          postDetailDispatch({
+            type: "POST_DETAIL_FAILED",
+            error: getErrorMessage(requestError, "Failed to load post details."),
+          });
         }
       })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setPostDetailLoading(false);
-        }
-      });
 
     return () => {
       controller.abort();
@@ -813,9 +1080,7 @@ function App() {
           setPublishedPosts((currentPosts) =>
             syncPublishedPost(currentPosts, post),
           );
-          setSelectedPost((currentPost) =>
-            currentPost?.id === post.id ? post : currentPost,
-          );
+          postDetailDispatch({ type: "SYNC_SELECTED_POST", post });
           setPostsError(null);
         }
       })
@@ -840,25 +1105,8 @@ function App() {
   }
 
   function openPostDetail(post: Post) {
-    postEditControllerRef.current?.abort();
-    postEditControllerRef.current = null;
-    postDeleteControllerRef.current?.abort();
-    postDeleteControllerRef.current = null;
-    postStatusControllerRef.current?.abort();
-    postStatusControllerRef.current = null;
-    setSelectedPostId(post.id);
-    setSelectedPost(post);
-    setPostDetailLoading(true);
-    setPostDetailError(null);
-    setPostEditDraft(null);
-    setPostEditSaving(false);
-    setPostEditError(null);
-    setPostDeleteConfirming(false);
-    setPostDeleting(false);
-    setPostDeleteError(null);
-    setPostStatusUpdating(false);
-    setPostStatusError(null);
-    setPostDetailReloadKey((currentKey) => currentKey + 1);
+    abortPostDetailRequests();
+    postDetailDispatch({ type: "OPEN_POST_DETAIL", post });
     setActiveView("drafts");
   }
 
@@ -867,30 +1115,12 @@ function App() {
       return;
     }
 
-    setPostDetailLoading(true);
-    setPostDetailError(null);
-    setPostDetailReloadKey((currentKey) => currentKey + 1);
+    postDetailDispatch({ type: "RETRY_POST_DETAIL" });
   }
 
   function closePostDetail() {
-    postEditControllerRef.current?.abort();
-    postEditControllerRef.current = null;
-    postDeleteControllerRef.current?.abort();
-    postDeleteControllerRef.current = null;
-    postStatusControllerRef.current?.abort();
-    postStatusControllerRef.current = null;
-    setSelectedPostId(null);
-    setSelectedPost(null);
-    setPostDetailLoading(false);
-    setPostDetailError(null);
-    setPostEditDraft(null);
-    setPostEditSaving(false);
-    setPostEditError(null);
-    setPostDeleteConfirming(false);
-    setPostDeleting(false);
-    setPostDeleteError(null);
-    setPostStatusUpdating(false);
-    setPostStatusError(null);
+    abortPostDetailRequests();
+    postDetailDispatch({ type: "CLOSE_POST_DETAIL" });
   }
 
   function startPostEdit() {
@@ -903,27 +1133,11 @@ function App() {
       return;
     }
 
-    setPostEditDraft({
-      title: selectedPost.title,
-      summary: selectedPost.summary,
-      content: selectedPost.content,
-    });
-    setPostEditError(null);
-    setPostDeleteConfirming(false);
-    setPostDeleteError(null);
-    setPostStatusError(null);
+    postDetailDispatch({ type: "START_POST_EDIT" });
   }
 
   function updatePostEditField(field: keyof PostEditInput, value: string) {
-    setPostEditDraft((currentDraft) =>
-      currentDraft === null
-        ? currentDraft
-        : {
-            ...currentDraft,
-            [field]: value,
-          },
-    );
-    setPostEditError(null);
+    postDetailDispatch({ type: "UPDATE_POST_EDIT_FIELD", field, value });
   }
 
   function cancelPostEdit() {
@@ -931,8 +1145,7 @@ function App() {
       return;
     }
 
-    setPostEditDraft(null);
-    setPostEditError(null);
+    postDetailDispatch({ type: "CANCEL_POST_EDIT" });
   }
 
   function savePostEdit() {
@@ -949,8 +1162,7 @@ function App() {
       return;
     }
 
-    setPostEditSaving(true);
-    setPostEditError(null);
+    postDetailDispatch({ type: "START_POST_EDIT_SAVE" });
 
     const controller = new AbortController();
     postEditControllerRef.current = controller;
@@ -958,28 +1170,24 @@ function App() {
     void updatePost(selectedPost.id, postEditDraft, controller.signal)
       .then((post) => {
         if (!controller.signal.aborted) {
-          setSelectedPost(post);
+          postDetailDispatch({ type: "POST_EDIT_SAVED", post });
           setPosts((currentPosts) => upsertPost(currentPosts, post));
           setPublishedPosts((currentPosts) =>
             syncPublishedPost(currentPosts, post),
           );
           composeDispatch({ type: "SYNC_POST_EDIT", post });
-          setPostDetailError(null);
-
-          setPostEditDraft(null);
-          setPostEditError(null);
         }
       })
       .catch((requestError: unknown) => {
         if (!controller.signal.aborted) {
-          setPostEditError(
-            getErrorMessage(requestError, "Failed to update post."),
-          );
+          postDetailDispatch({
+            type: "POST_EDIT_FAILED",
+            error: getErrorMessage(requestError, "Failed to update post."),
+          });
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) {
-          setPostEditSaving(false);
           postEditControllerRef.current = null;
         }
       });
@@ -995,11 +1203,7 @@ function App() {
       return;
     }
 
-    setPostEditDraft(null);
-    setPostEditError(null);
-    setPostDeleteConfirming(true);
-    setPostDeleteError(null);
-    setPostStatusError(null);
+    postDetailDispatch({ type: "REQUEST_POST_DELETE" });
   }
 
   function cancelPostDelete() {
@@ -1007,8 +1211,7 @@ function App() {
       return;
     }
 
-    setPostDeleteConfirming(false);
-    setPostDeleteError(null);
+    postDetailDispatch({ type: "CANCEL_POST_DELETE" });
   }
 
   function confirmPostDelete() {
@@ -1021,8 +1224,7 @@ function App() {
       return;
     }
 
-    setPostDeleting(true);
-    setPostDeleteError(null);
+    postDetailDispatch({ type: "START_POST_DELETE" });
 
     const targetPostId = selectedPost.id;
     const controller = new AbortController();
@@ -1037,31 +1239,20 @@ function App() {
           setPublishedPosts((currentPosts) =>
             currentPosts.filter((post) => post.id !== targetPostId),
           );
-          setSelectedPostId(null);
-          setSelectedPost(null);
-          setPostDetailLoading(false);
-          setPostDetailError(null);
-          setPostEditDraft(null);
-          setPostEditSaving(false);
-          setPostEditError(null);
-          setPostDeleteConfirming(false);
-          setPostDeleteError(null);
-          setPostStatusUpdating(false);
-          setPostStatusError(null);
-
+          postDetailDispatch({ type: "POST_DELETE_SUCCEEDED" });
           composeDispatch({ type: "SYNC_DELETED_POST", postId: targetPostId });
         }
       })
       .catch((requestError: unknown) => {
         if (!controller.signal.aborted) {
-          setPostDeleteError(
-            getErrorMessage(requestError, "Failed to delete post."),
-          );
+          postDetailDispatch({
+            type: "POST_DELETE_FAILED",
+            error: getErrorMessage(requestError, "Failed to delete post."),
+          });
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) {
-          setPostDeleting(false);
           postDeleteControllerRef.current = null;
         }
       });
@@ -1078,12 +1269,7 @@ function App() {
       return;
     }
 
-    setPostStatusUpdating(true);
-    setPostStatusError(null);
-    setPostEditDraft(null);
-    setPostEditError(null);
-    setPostDeleteConfirming(false);
-    setPostDeleteError(null);
+    postDetailDispatch({ type: "START_POST_PUBLISH" });
 
     const controller = new AbortController();
     postStatusControllerRef.current = controller;
@@ -1091,26 +1277,24 @@ function App() {
     void updatePostStatus(selectedPost.id, "published", controller.signal)
       .then((post) => {
         if (!controller.signal.aborted) {
-          setSelectedPost(post);
+          postDetailDispatch({ type: "POST_PUBLISHED", post });
           setPosts((currentPosts) => upsertPost(currentPosts, post));
           setPublishedPosts((currentPosts) => upsertPost(currentPosts, post));
           setActiveView("published");
           setPublishedPostsError(null);
           composeDispatch({ type: "SYNC_SAVED_DRAFT", post });
-          setPostDetailError(null);
-          setPostStatusError(null);
         }
       })
       .catch((requestError: unknown) => {
         if (!controller.signal.aborted) {
-          setPostStatusError(
-            getErrorMessage(requestError, "Failed to publish post."),
-          );
+          postDetailDispatch({
+            type: "POST_PUBLISH_FAILED",
+            error: getErrorMessage(requestError, "Failed to publish post."),
+          });
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) {
-          setPostStatusUpdating(false);
           postStatusControllerRef.current = null;
         }
       });
