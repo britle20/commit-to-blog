@@ -64,6 +64,8 @@ type CommitsResponse = {
 ### `POST /api/blogs/generate`
 
 Generates a blog draft from the selected repository, branch, and commits.
+The server may enrich selected commits with bounded GitHub commit detail context before calling Gemini. The client still sends only the selected commit summaries.
+The request supports up to 12 selected commits.
 
 ```ts
 type GenerateBlogRequest = {
@@ -110,6 +112,7 @@ type PostResponse = {
 ### `POST /api/posts`
 
 Saves an edited draft. The default status is `draft`.
+The request uses the same 12-commit selection limit as draft generation.
 
 ```ts
 type CreatePostRequest = {

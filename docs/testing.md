@@ -17,6 +17,8 @@
 - `GET /api/github/repos/:owner/:repo/branches` returns branches.
 - `GET /api/github/repos/:owner/:repo/commits?branch=...` returns commits.
 - `POST /api/blogs/generate` returns a draft from selected commits.
+- `POST /api/blogs/generate` includes bounded changed-file context in the Gemini prompt when GitHub commit details are available.
+- Blog draft generation and post creation reject requests with more than 12 commits.
 - Post create, list, detail, update, status update, and delete work correctly.
 - Post status filtering returns only posts with the requested status.
 
@@ -25,6 +27,7 @@
 - Branch and commit UI is not active before repository selection.
 - Branch list updates after repository selection.
 - Commit list updates after branch selection.
+- Commit selection is limited to 12 selected commits.
 - AI draft generation works after commit selection.
 - The generated draft is editable.
 - Saved posts appear in the list.

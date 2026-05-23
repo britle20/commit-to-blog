@@ -1,6 +1,7 @@
 import { env } from "../config/env.js";
 import { HttpError } from "../middleware/error.middleware.js";
 import type {
+  CommitFileChange,
   CommitInput,
   GeneratedDraft,
   GenerateDraftInput,
@@ -22,6 +23,35 @@ type GeminiResponse = {
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_MODEL = "gemini-2.5-flash";
 
+function buildFileChangeContext(files?: CommitFileChange[]) {
+  if (!files || files.length === 0) {
+    return ["   changed files: no detailed file changes included"].join("\n");
+  }
+
+  return [
+    "   changed files:",
+    ...files.map((file) => {
+      const lines = [
+        `   - ${file.filename}`,
+        `     status: ${file.status}`,
+        `     changes: +${file.additions} -${file.deletions}`,
+      ];
+
+      if (file.patchExcerpt) {
+        lines.push("     patch excerpt:");
+        lines.push(
+          file.patchExcerpt
+            .split("\n")
+            .map((line) => `       ${line}`)
+            .join("\n"),
+        );
+      }
+
+      return lines.join("\n");
+    }),
+  ].join("\n");
+}
+
 function buildCommitContext(commits: CommitInput[]) {
   if (commits.length === 0) {
     return ["Commits:", "- No commits were selected."].join("\n");
@@ -36,6 +66,10 @@ function buildCommitContext(commits: CommitInput[]) {
         `   author: ${commit.authorName}`,
         `   date: ${commit.authorDate}`,
         `   url: ${commit.htmlUrl}`,
+        ...(commit.changeContextNote
+          ? [`   change context note: ${commit.changeContextNote}`]
+          : []),
+        buildFileChangeContext(commit.files),
       ];
 
       return lines.join("\n");
@@ -48,6 +82,9 @@ export function buildPrompt({ repository, branch, commits }: GenerateDraftInput)
     "You are writing a development blog draft from GitHub repository activity.",
     "Return valid JSON only with title, summary, and content fields.",
     "Use only the provided repository, branch, and commit context.",
+    "Use the changed file summaries and patch excerpts when they are available.",
+    "Patch excerpts are heuristic-selected and may not include every changed file.",
+    "Do not invent code behavior that is not supported by the commit messages or patch excerpts.",
     "Write a specific, technical draft that explains what changed and why it matters.",
     "Keep the summary concise and the content readable for a development blog audience.",
     "Repository context:",

@@ -27,7 +27,7 @@ type BranchSummary = {
 
 ## Commit
 
-This is the basic commit data needed for blog draft generation. Changed files and diff summaries can be added later if draft quality needs improvement.
+This is the basic commit data needed for selection, storage, and blog draft generation. Draft generation supports up to 12 selected commits. During draft generation, the backend can enrich selected commits with non-persisted change context from GitHub commit details.
 
 ```ts
 type CommitSummary = {
@@ -36,6 +36,20 @@ type CommitSummary = {
   authorName: string;
   authorDate: string;
   htmlUrl: string;
+};
+```
+
+## Commit Change Context
+
+Commit change context is loaded by the backend during draft generation. It is used for the Gemini prompt, but the frontend commit list and saved post model can still use the base `CommitSummary` shape.
+
+```ts
+type CommitFileChange = {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patchExcerpt?: string;
 };
 ```
 
@@ -84,7 +98,7 @@ type Post = {
 
 ## Future Extensions
 
-- Changed files and diff summaries per commit.
+- Full diff storage and richer code-change summaries.
 - Tags, categories, and thumbnails.
 - User accounts and author data.
 - Gemini request and response history.

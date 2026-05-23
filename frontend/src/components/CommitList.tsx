@@ -1,4 +1,5 @@
 import type { CommitSummary, RepositorySummary } from "../lib/github";
+import { MAX_SELECTED_COMMITS } from "../constants/limits";
 
 type CommitListProps = {
   repository: RepositorySummary | null;
@@ -68,6 +69,9 @@ export function CommitList({
   onToggle,
   onRetry,
 }: CommitListProps) {
+  const selectionLimitReached =
+    selectedCommitShas.length >= MAX_SELECTED_COMMITS;
+
   return (
     <section
       aria-disabled={disabled}
@@ -131,7 +135,7 @@ export function CommitList({
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3 rounded-lg bg-surface-muted px-4 py-3 text-sm">
               <span className="text-secondary">
-                {selectedCommitShas.length} selected
+                {selectedCommitShas.length}/{MAX_SELECTED_COMMITS} selected
               </span>
               <button
                 type="button"
@@ -144,15 +148,19 @@ export function CommitList({
             </div>
 
             <div className="grid gap-3">
-              {commits.map((commit) => (
-                <CommitRow
-                  key={commit.sha}
-                  commit={commit}
-                  selected={selectedCommitShas.includes(commit.sha)}
-                  disabled={disabled}
-                  onToggle={onToggle}
-                />
-              ))}
+              {commits.map((commit) => {
+                const selected = selectedCommitShas.includes(commit.sha);
+
+                return (
+                  <CommitRow
+                    key={commit.sha}
+                    commit={commit}
+                    selected={selected}
+                    disabled={disabled || (selectionLimitReached && !selected)}
+                    onToggle={onToggle}
+                  />
+                );
+              })}
             </div>
           </div>
         )}

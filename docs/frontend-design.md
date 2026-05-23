@@ -48,6 +48,7 @@ Example usage direction:
 - Show commits for the selected branch and allow multiple commit selection.
 - Show repository, branch, and commit selection as three equal-width columns on desktop.
 - Keep each selection column at a stable desktop height and scroll within the column when there are many items.
+- Allow selecting up to 12 commits for draft generation.
 - Request AI draft generation from the selected commits.
 - Show generated title, summary, and content in the editor.
 

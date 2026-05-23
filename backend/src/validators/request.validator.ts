@@ -1,4 +1,5 @@
 import { HttpError } from "../middleware/error.middleware.js";
+import { MAX_SELECTED_COMMITS } from "../config/limits.js";
 import type {
   CommitInput,
   CreatePostInput,
@@ -38,6 +39,13 @@ function ensureCommits(value: unknown) {
   if (!Array.isArray(value) || value.length === 0) {
     throw new HttpError(400, "Invalid request body", {
       field: "commits",
+    });
+  }
+
+  if (value.length > MAX_SELECTED_COMMITS) {
+    throw new HttpError(400, "Invalid request body", {
+      field: "commits",
+      maxItems: MAX_SELECTED_COMMITS,
     });
   }
 

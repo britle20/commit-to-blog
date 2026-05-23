@@ -33,6 +33,19 @@ export type GitHubCommit = {
   };
 };
 
+export type GitHubCommitFile = {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  changes: number;
+  patch?: string;
+};
+
+export type GitHubCommitDetail = GitHubCommit & {
+  files?: GitHubCommitFile[];
+};
+
 export type RepositorySummary = {
   id: number;
   name: string;

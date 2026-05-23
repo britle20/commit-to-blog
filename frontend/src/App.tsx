@@ -14,6 +14,7 @@ import { PostDetail } from "./components/PostDetail";
 import { PostList } from "./components/PostList";
 import { PublishedPostList } from "./components/PublishedPostList";
 import { RepositorySelector } from "./components/RepositorySelector";
+import { MAX_SELECTED_COMMITS } from "./constants/limits";
 import { getErrorMessage } from "./lib/api";
 import { generateBlogDraft, type GeneratedDraft } from "./lib/blog";
 import {
@@ -128,9 +129,15 @@ function clearDraftFields(state: ComposeState): ComposeState {
 }
 
 function toggleCommitSha(selectedCommitShas: string[], commitSha: string) {
-  return selectedCommitShas.includes(commitSha)
-    ? selectedCommitShas.filter((sha) => sha !== commitSha)
-    : [...selectedCommitShas, commitSha];
+  if (selectedCommitShas.includes(commitSha)) {
+    return selectedCommitShas.filter((sha) => sha !== commitSha);
+  }
+
+  if (selectedCommitShas.length >= MAX_SELECTED_COMMITS) {
+    return selectedCommitShas;
+  }
+
+  return [...selectedCommitShas, commitSha];
 }
 
 function composeReducer(
@@ -263,14 +270,21 @@ function composeReducer(
         commitLoading: true,
       });
 
-    case "TOGGLE_COMMIT":
+    case "TOGGLE_COMMIT": {
+      const selectedCommitShas = toggleCommitSha(
+        state.selectedCommitShas,
+        action.commitSha,
+      );
+
+      if (selectedCommitShas === state.selectedCommitShas) {
+        return state;
+      }
+
       return clearDraftFields({
         ...state,
-        selectedCommitShas: toggleCommitSha(
-          state.selectedCommitShas,
-          action.commitSha,
-        ),
+        selectedCommitShas,
       });
+    }
 
     case "CLEAR_DRAFT":
       return clearDraftFields(state);

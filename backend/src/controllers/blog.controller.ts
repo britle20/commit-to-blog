@@ -1,6 +1,6 @@
 import type { RequestHandler } from "express";
 
-import { generateBlogDraft } from "../services/gemini.service.js";
+import { generateBlogDraft } from "../services/blog.service.js";
 import type { GeneratedDraft } from "../types/api.js";
 import { parseGenerateDraftInput } from "../validators/request.validator.js";
 

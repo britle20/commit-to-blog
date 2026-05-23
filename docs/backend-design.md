@@ -17,6 +17,7 @@ backend/
     config/
       env.ts
       database.ts
+      limits.ts
     routes/
       github.routes.ts
       blog.routes.ts
@@ -26,6 +27,7 @@ backend/
       blog.controller.ts
       post.controller.ts
     services/
+      blog.service.ts
       github.service.ts
       gemini.service.ts
       post.service.ts
@@ -54,12 +56,16 @@ backend/
 
 ## Service Responsibilities
 
+- `blog.service.ts`
+  - Orchestrates selected commit enrichment and Gemini draft generation.
 - `github.service.ts`
   - Encapsulates GitHub API requests.
   - Reads the token only from environment variables.
+  - Loads selected commit file changes for draft generation context.
 - `gemini.service.ts`
   - Converts commit data into a blog draft generation prompt.
   - Reads the Gemini API key only from environment variables.
+  - Uses bounded commit and patch context limits from backend configuration.
 - `post.service.ts`
   - Handles MongoDB post create, read, update, delete, and status changes.
 

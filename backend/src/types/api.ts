@@ -10,6 +10,16 @@ export type CommitInput = {
   authorName: string;
   authorDate: string;
   htmlUrl: string;
+  files?: CommitFileChange[];
+  changeContextNote?: string;
+};
+
+export type CommitFileChange = {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patchExcerpt?: string;
 };
 
 export type PostStatus = "draft" | "published";
