@@ -1,725 +1,64 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-} from "react";
+import { useState } from "react";
 
+import { BranchSelector } from "./components/BranchSelector";
 import { CommitList } from "./components/CommitList";
 import { DraftEditor } from "./components/DraftEditor";
-import { BranchSelector } from "./components/BranchSelector";
 import { PostDetail } from "./components/PostDetail";
 import { PostList } from "./components/PostList";
 import { PublishedPostList } from "./components/PublishedPostList";
 import { RepositorySelector } from "./components/RepositorySelector";
-import {
-  DRAFT_POSTS_PAGE_SIZE,
-  MAX_SELECTED_COMMITS,
-  PUBLISHED_POSTS_PAGE_SIZE,
-} from "./constants/limits";
-import { getErrorMessage } from "./lib/api";
-import { generateBlogDraft, type GeneratedDraft } from "./lib/blog";
-import {
-  createDraftPost,
-  deletePost,
-  fetchPost,
-  fetchDraftPosts,
-  fetchPublishedPosts,
-  updatePost,
-  updatePostStatus,
-  type PaginationMeta,
-  type Post,
-  type PostEditInput,
-} from "./lib/posts";
-import {
-  fetchBranches,
-  fetchCommits,
-  fetchRepositories,
-  type BranchSummary,
-  type CommitSummary,
-  type RepositorySummary,
-} from "./lib/github";
-
-function upsertPost(posts: Post[], nextPost: Post) {
-  return [nextPost, ...posts.filter((post) => post.id !== nextPost.id)];
-}
-
-function syncPublishedPost(posts: Post[], nextPost: Post) {
-  return nextPost.status === "published"
-    ? upsertPost(posts, nextPost)
-    : posts.filter((post) => post.id !== nextPost.id);
-}
-
-function createEmptyPagination(limit: number): PaginationMeta {
-  return {
-    page: 1,
-    limit,
-    total: 0,
-    totalPages: 0,
-    hasPreviousPage: false,
-    hasNextPage: false,
-  };
-}
+import { useComposeFlow } from "./hooks/useComposeFlow";
+import { usePostDetail } from "./hooks/usePostDetail";
+import { usePostLists } from "./hooks/usePostLists";
 
 type AppView = "published" | "compose" | "drafts";
 
-type ComposeState = {
-  selectedRepositoryId: number | null;
-  branches: BranchSummary[];
-  selectedBranchName: string | null;
-  commits: CommitSummary[];
-  selectedCommitShas: string[];
-  generatedDraft: GeneratedDraft | null;
-  savedDraft: Post | null;
-  hasUnsavedDraftChanges: boolean;
-  branchLoading: boolean;
-  commitLoading: boolean;
-  draftLoading: boolean;
-  saveLoading: boolean;
-  branchError: string | null;
-  commitError: string | null;
-  draftError: string | null;
-  saveError: string | null;
-};
+const pageCopy = {
+  published: {
+    title: "Published posts",
+    description:
+      "Read posts that have already been published inside this service.",
+  },
+  compose: {
+    title: "Write a new post",
+    description:
+      "Select a repository, branch, and commits, then generate and save a draft.",
+  },
+  drafts: {
+    title: "Draft posts",
+    description:
+      "Open a saved draft to edit it, delete it, or publish it inside this service.",
+  },
+} satisfies Record<AppView, { title: string; description: string }>;
 
-type ComposeAction =
-  | { type: "REPOSITORIES_LOADED"; repositoryId: number | null }
-  | { type: "REPOSITORIES_FAILED" }
-  | { type: "SELECT_REPOSITORY"; repositoryId: number }
-  | {
-      type: "BRANCHES_LOADED";
-      branches: BranchSummary[];
-      defaultBranchName: string;
-    }
-  | { type: "BRANCHES_FAILED"; error: string }
-  | { type: "SELECT_BRANCH"; branchName: string }
-  | { type: "RETRY_BRANCHES" }
-  | { type: "COMMITS_LOADED"; commits: CommitSummary[] }
-  | { type: "COMMITS_FAILED"; error: string }
-  | { type: "RETRY_COMMITS" }
-  | { type: "TOGGLE_COMMIT"; commitSha: string }
-  | { type: "CLEAR_DRAFT" }
-  | { type: "START_DRAFT_GENERATION" }
-  | { type: "DRAFT_GENERATED"; draft: GeneratedDraft }
-  | { type: "DRAFT_GENERATION_FAILED"; error: string }
-  | { type: "UPDATE_DRAFT_FIELD"; field: keyof GeneratedDraft; value: string }
-  | { type: "START_SAVE_DRAFT" }
-  | { type: "DRAFT_SAVED"; post: Post }
-  | { type: "SAVE_DRAFT_FAILED"; error: string }
-  | { type: "SYNC_POST_EDIT"; post: Post }
-  | { type: "SYNC_SAVED_DRAFT"; post: Post }
-  | { type: "SYNC_DELETED_POST"; postId: string };
-
-const initialComposeState: ComposeState = {
-  selectedRepositoryId: null,
-  branches: [],
-  selectedBranchName: null,
-  commits: [],
-  selectedCommitShas: [],
-  generatedDraft: null,
-  savedDraft: null,
-  hasUnsavedDraftChanges: false,
-  branchLoading: false,
-  commitLoading: false,
-  draftLoading: false,
-  saveLoading: false,
-  branchError: null,
-  commitError: null,
-  draftError: null,
-  saveError: null,
-};
-
-function clearDraftFields(state: ComposeState): ComposeState {
-  return {
-    ...state,
-    generatedDraft: null,
-    savedDraft: null,
-    hasUnsavedDraftChanges: false,
-    draftError: null,
-    saveError: null,
-    draftLoading: false,
-    saveLoading: false,
-  };
-}
-
-function toggleCommitSha(selectedCommitShas: string[], commitSha: string) {
-  if (selectedCommitShas.includes(commitSha)) {
-    return selectedCommitShas.filter((sha) => sha !== commitSha);
-  }
-
-  if (selectedCommitShas.length >= MAX_SELECTED_COMMITS) {
-    return selectedCommitShas;
-  }
-
-  return [...selectedCommitShas, commitSha];
-}
-
-function composeReducer(
-  state: ComposeState,
-  action: ComposeAction,
-): ComposeState {
-  switch (action.type) {
-    case "REPOSITORIES_LOADED":
-      return clearDraftFields({
-        ...state,
-        selectedRepositoryId: action.repositoryId,
-        branches: [],
-        selectedBranchName: null,
-        commits: [],
-        selectedCommitShas: [],
-        branchError: null,
-        commitError: null,
-        branchLoading: action.repositoryId !== null,
-        commitLoading: false,
-      });
-
-    case "REPOSITORIES_FAILED":
-      return clearDraftFields({
-        ...state,
-        selectedRepositoryId: null,
-        branches: [],
-        selectedBranchName: null,
-        commits: [],
-        selectedCommitShas: [],
-        branchError: null,
-        commitError: null,
-        branchLoading: false,
-        commitLoading: false,
-      });
-
-    case "SELECT_REPOSITORY":
-      return clearDraftFields({
-        ...state,
-        selectedRepositoryId: action.repositoryId,
-        branches: [],
-        selectedBranchName: null,
-        commits: [],
-        selectedCommitShas: [],
-        branchError: null,
-        commitError: null,
-        branchLoading: true,
-        commitLoading: false,
-      });
-
-    case "BRANCHES_LOADED": {
-      const nextBranchName = action.branches.some(
-        (branch) => branch.name === action.defaultBranchName,
-      )
-        ? action.defaultBranchName
-        : action.branches[0]?.name ?? null;
-      const selectedBranchName =
-        state.selectedBranchName !== null &&
-        action.branches.some((branch) => branch.name === state.selectedBranchName)
-          ? state.selectedBranchName
-          : nextBranchName;
-
-      return clearDraftFields({
-        ...state,
-        branches: action.branches,
-        selectedBranchName,
-        commits: [],
-        selectedCommitShas: [],
-        branchError: null,
-        commitError: null,
-        branchLoading: false,
-        commitLoading: action.branches.length > 0,
-      });
-    }
-
-    case "BRANCHES_FAILED":
-      return clearDraftFields({
-        ...state,
-        branches: [],
-        selectedBranchName: null,
-        commits: [],
-        selectedCommitShas: [],
-        branchError: action.error,
-        commitError: null,
-        branchLoading: false,
-        commitLoading: false,
-      });
-
-    case "SELECT_BRANCH":
-      return clearDraftFields({
-        ...state,
-        selectedBranchName: action.branchName,
-        commits: [],
-        selectedCommitShas: [],
-        commitError: null,
-        commitLoading: true,
-      });
-
-    case "RETRY_BRANCHES":
-      return clearDraftFields({
-        ...state,
-        commits: [],
-        selectedCommitShas: [],
-        branchError: null,
-        commitError: null,
-        branchLoading: true,
-        commitLoading: false,
-      });
-
-    case "COMMITS_LOADED":
-      return {
-        ...state,
-        commits: action.commits,
-        commitError: null,
-        commitLoading: false,
-      };
-
-    case "COMMITS_FAILED":
-      return clearDraftFields({
-        ...state,
-        commits: [],
-        selectedCommitShas: [],
-        commitError: action.error,
-        commitLoading: false,
-      });
-
-    case "RETRY_COMMITS":
-      return clearDraftFields({
-        ...state,
-        commitError: null,
-        commitLoading: true,
-      });
-
-    case "TOGGLE_COMMIT": {
-      const selectedCommitShas = toggleCommitSha(
-        state.selectedCommitShas,
-        action.commitSha,
-      );
-
-      if (selectedCommitShas === state.selectedCommitShas) {
-        return state;
-      }
-
-      return clearDraftFields({
-        ...state,
-        selectedCommitShas,
-      });
-    }
-
-    case "CLEAR_DRAFT":
-      return clearDraftFields(state);
-
-    case "START_DRAFT_GENERATION":
-      return {
-        ...state,
-        draftLoading: true,
-        draftError: null,
-        generatedDraft: null,
-        savedDraft: null,
-        hasUnsavedDraftChanges: false,
-        saveError: null,
-      };
-
-    case "DRAFT_GENERATED":
-      return {
-        ...state,
-        generatedDraft: action.draft,
-        savedDraft: null,
-        hasUnsavedDraftChanges: true,
-        draftLoading: false,
-        saveError: null,
-      };
-
-    case "DRAFT_GENERATION_FAILED":
-      return {
-        ...state,
-        draftError: action.error,
-        draftLoading: false,
-      };
-
-    case "UPDATE_DRAFT_FIELD":
-      return {
-        ...state,
-        generatedDraft:
-          state.generatedDraft === null
-            ? state.generatedDraft
-            : {
-                ...state.generatedDraft,
-                [action.field]: action.value,
-              },
-        hasUnsavedDraftChanges: true,
-        saveError: null,
-      };
-
-    case "START_SAVE_DRAFT":
-      return {
-        ...state,
-        saveLoading: true,
-        saveError: null,
-      };
-
-    case "DRAFT_SAVED":
-      return {
-        ...state,
-        savedDraft: action.post,
-        generatedDraft: {
-          title: action.post.title,
-          summary: action.post.summary,
-          content: action.post.content,
-        },
-        hasUnsavedDraftChanges: false,
-        saveLoading: false,
-      };
-
-    case "SAVE_DRAFT_FAILED":
-      return {
-        ...state,
-        saveError: action.error,
-        saveLoading: false,
-      };
-
-    case "SYNC_POST_EDIT": {
-      const matchesSavedDraft = state.savedDraft?.id === action.post.id;
-
-      return {
-        ...state,
-        savedDraft: matchesSavedDraft ? action.post : state.savedDraft,
-        generatedDraft:
-          matchesSavedDraft && !state.hasUnsavedDraftChanges
-            ? {
-                title: action.post.title,
-                summary: action.post.summary,
-                content: action.post.content,
-              }
-            : state.generatedDraft,
-      };
-    }
-
-    case "SYNC_SAVED_DRAFT":
-      return {
-        ...state,
-        savedDraft:
-          state.savedDraft?.id === action.post.id ? action.post : state.savedDraft,
-      };
-
-    case "SYNC_DELETED_POST": {
-      const deletedSavedDraft = state.savedDraft?.id === action.postId;
-
-      return {
-        ...state,
-        savedDraft: deletedSavedDraft ? null : state.savedDraft,
-        hasUnsavedDraftChanges:
-          deletedSavedDraft && state.generatedDraft !== null
-            ? true
-            : state.hasUnsavedDraftChanges,
-      };
-    }
-
-    default:
-      return state;
-  }
-}
-
-type PostDetailState = {
-  selectedPostId: string | null;
-  selectedPost: Post | null;
-  postDetailReloadKey: number;
-  postEditDraft: PostEditInput | null;
-  postDeleteConfirming: boolean;
-  postDetailLoading: boolean;
-  postEditSaving: boolean;
-  postDeleting: boolean;
-  postStatusUpdating: boolean;
-  postDetailError: string | null;
-  postEditError: string | null;
-  postDeleteError: string | null;
-  postStatusError: string | null;
-};
-
-type PostDetailAction =
-  | { type: "OPEN_POST_DETAIL"; post: Post }
-  | { type: "RETRY_POST_DETAIL" }
-  | { type: "CLOSE_POST_DETAIL" }
-  | { type: "POST_DETAIL_LOADED"; post: Post }
-  | { type: "POST_DETAIL_FAILED"; error: string }
-  | { type: "SYNC_SELECTED_POST"; post: Post }
-  | { type: "SYNC_POST_LIST"; posts: Post[] }
-  | { type: "START_POST_EDIT" }
-  | { type: "UPDATE_POST_EDIT_FIELD"; field: keyof PostEditInput; value: string }
-  | { type: "CANCEL_POST_EDIT" }
-  | { type: "START_POST_EDIT_SAVE" }
-  | { type: "POST_EDIT_SAVED"; post: Post }
-  | { type: "POST_EDIT_FAILED"; error: string }
-  | { type: "REQUEST_POST_DELETE" }
-  | { type: "CANCEL_POST_DELETE" }
-  | { type: "START_POST_DELETE" }
-  | { type: "POST_DELETE_SUCCEEDED" }
-  | { type: "POST_DELETE_FAILED"; error: string }
-  | { type: "START_POST_PUBLISH" }
-  | { type: "POST_PUBLISHED"; post: Post }
-  | { type: "POST_PUBLISH_FAILED"; error: string };
-
-const initialPostDetailState: PostDetailState = {
-  selectedPostId: null,
-  selectedPost: null,
-  postDetailReloadKey: 0,
-  postEditDraft: null,
-  postDeleteConfirming: false,
-  postDetailLoading: false,
-  postEditSaving: false,
-  postDeleting: false,
-  postStatusUpdating: false,
-  postDetailError: null,
-  postEditError: null,
-  postDeleteError: null,
-  postStatusError: null,
-};
-
-function clearPostDetailFields(state: PostDetailState): PostDetailState {
-  return {
-    ...state,
-    selectedPostId: null,
-    selectedPost: null,
-    postDetailLoading: false,
-    postDetailError: null,
-    postEditDraft: null,
-    postEditSaving: false,
-    postEditError: null,
-    postDeleteConfirming: false,
-    postDeleting: false,
-    postDeleteError: null,
-    postStatusUpdating: false,
-    postStatusError: null,
-  };
-}
-
-function postDetailReducer(
-  state: PostDetailState,
-  action: PostDetailAction,
-): PostDetailState {
-  switch (action.type) {
-    case "OPEN_POST_DETAIL":
-      return {
-        ...state,
-        selectedPostId: action.post.id,
-        selectedPost: action.post,
-        postDetailLoading: true,
-        postDetailError: null,
-        postEditDraft: null,
-        postEditSaving: false,
-        postEditError: null,
-        postDeleteConfirming: false,
-        postDeleting: false,
-        postDeleteError: null,
-        postStatusUpdating: false,
-        postStatusError: null,
-        postDetailReloadKey: state.postDetailReloadKey + 1,
-      };
-
-    case "RETRY_POST_DETAIL":
-      return {
-        ...state,
-        postDetailLoading: true,
-        postDetailError: null,
-        postDetailReloadKey: state.postDetailReloadKey + 1,
-      };
-
-    case "CLOSE_POST_DETAIL":
-      return clearPostDetailFields(state);
-
-    case "POST_DETAIL_LOADED":
-      return {
-        ...state,
-        selectedPost: action.post,
-        postDetailLoading: false,
-        postDetailError: null,
-      };
-
-    case "POST_DETAIL_FAILED":
-      return {
-        ...state,
-        postDetailLoading: false,
-        postDetailError: action.error,
-      };
-
-    case "SYNC_SELECTED_POST":
-      return {
-        ...state,
-        selectedPost:
-          state.selectedPost?.id === action.post.id ? action.post : state.selectedPost,
-      };
-
-    case "SYNC_POST_LIST":
-      return {
-        ...state,
-        selectedPost:
-          state.selectedPost === null
-            ? state.selectedPost
-            : action.posts.find((post) => post.id === state.selectedPost?.id) ??
-              state.selectedPost,
-      };
-
-    case "START_POST_EDIT":
-      if (state.selectedPost === null) {
-        return state;
-      }
-
-      return {
-        ...state,
-        postEditDraft: {
-          title: state.selectedPost.title,
-          summary: state.selectedPost.summary,
-          content: state.selectedPost.content,
-        },
-        postEditError: null,
-        postDeleteConfirming: false,
-        postDeleteError: null,
-        postStatusError: null,
-      };
-
-    case "UPDATE_POST_EDIT_FIELD":
-      return {
-        ...state,
-        postEditDraft:
-          state.postEditDraft === null
-            ? state.postEditDraft
-            : {
-                ...state.postEditDraft,
-                [action.field]: action.value,
-              },
-        postEditError: null,
-      };
-
-    case "CANCEL_POST_EDIT":
-      return {
-        ...state,
-        postEditDraft: null,
-        postEditError: null,
-      };
-
-    case "START_POST_EDIT_SAVE":
-      return {
-        ...state,
-        postEditSaving: true,
-        postEditError: null,
-      };
-
-    case "POST_EDIT_SAVED":
-      return {
-        ...state,
-        selectedPost: action.post,
-        postDetailError: null,
-        postEditDraft: null,
-        postEditSaving: false,
-        postEditError: null,
-      };
-
-    case "POST_EDIT_FAILED":
-      return {
-        ...state,
-        postEditSaving: false,
-        postEditError: action.error,
-      };
-
-    case "REQUEST_POST_DELETE":
-      return {
-        ...state,
-        postEditDraft: null,
-        postEditError: null,
-        postDeleteConfirming: true,
-        postDeleteError: null,
-        postStatusError: null,
-      };
-
-    case "CANCEL_POST_DELETE":
-      return {
-        ...state,
-        postDeleteConfirming: false,
-        postDeleteError: null,
-      };
-
-    case "START_POST_DELETE":
-      return {
-        ...state,
-        postDeleting: true,
-        postDeleteError: null,
-      };
-
-    case "POST_DELETE_SUCCEEDED":
-      return clearPostDetailFields(state);
-
-    case "POST_DELETE_FAILED":
-      return {
-        ...state,
-        postDeleting: false,
-        postDeleteError: action.error,
-      };
-
-    case "START_POST_PUBLISH":
-      return {
-        ...state,
-        postStatusUpdating: true,
-        postStatusError: null,
-        postEditDraft: null,
-        postEditError: null,
-        postDeleteConfirming: false,
-        postDeleteError: null,
-      };
-
-    case "POST_PUBLISHED":
-      return {
-        ...state,
-        selectedPost: action.post,
-        postDetailError: null,
-        postStatusUpdating: false,
-        postStatusError: null,
-      };
-
-    case "POST_PUBLISH_FAILED":
-      return {
-        ...state,
-        postStatusUpdating: false,
-        postStatusError: action.error,
-      };
-
-    default:
-      return state;
-  }
-}
+const navItems: Array<{ view: AppView; label: string }> = [
+  { view: "published", label: "Published" },
+  { view: "compose", label: "New post" },
+  { view: "drafts", label: "Drafts" },
+];
 
 function App() {
   const [activeView, setActiveView] = useState<AppView>("published");
-  const [repositories, setRepositories] = useState<RepositorySummary[]>([]);
-  const [composeState, composeDispatch] = useReducer(
-    composeReducer,
-    initialComposeState,
-  );
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [postsPage, setPostsPage] = useState(1);
-  const [postsPagination, setPostsPagination] = useState<PaginationMeta>(() =>
-    createEmptyPagination(DRAFT_POSTS_PAGE_SIZE),
-  );
-  const [postsReloadKey, setPostsReloadKey] = useState(0);
-  const [publishedPosts, setPublishedPosts] = useState<Post[]>([]);
-  const [publishedPostsPage, setPublishedPostsPage] = useState(1);
-  const [publishedPostsPagination, setPublishedPostsPagination] =
-    useState<PaginationMeta>(() =>
-      createEmptyPagination(PUBLISHED_POSTS_PAGE_SIZE),
-    );
-  const [publishedPostsReloadKey, setPublishedPostsReloadKey] = useState(0);
-  const [postDetailState, postDetailDispatch] = useReducer(
-    postDetailReducer,
-    initialPostDetailState,
-  );
-  const [loading, setLoading] = useState(true);
-  const [postsLoading, setPostsLoading] = useState(true);
-  const [publishedPostsLoading, setPublishedPostsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [postsError, setPostsError] = useState<string | null>(null);
-  const [publishedPostsError, setPublishedPostsError] = useState<string | null>(
-    null,
-  );
-  const draftControllerRef = useRef<AbortController | null>(null);
-  const saveControllerRef = useRef<AbortController | null>(null);
-  const postEditControllerRef = useRef<AbortController | null>(null);
-  const postDeleteControllerRef = useRef<AbortController | null>(null);
-  const postStatusControllerRef = useRef<AbortController | null>(null);
+  const postLists = usePostLists();
+  const compose = useComposeFlow({
+    onDraftSaved: postLists.handleDraftSaved,
+  });
+  const postDetail = usePostDetail({
+    onPostLoaded: postLists.syncPost,
+    onPostEdited: (post) => {
+      postLists.handlePostEdited(post);
+      compose.syncPostEdit(post);
+    },
+    onPostDeleted: (postId) => {
+      postLists.handlePostDeleted(postId);
+      compose.syncDeletedPost(postId);
+    },
+    onPostPublished: (post) => {
+      postLists.handlePostPublished(post);
+      compose.syncSavedDraft(post);
+      setActiveView("published");
+    },
+  });
   const {
     selectedRepositoryId,
     branches,
@@ -737,11 +76,10 @@ function App() {
     commitError,
     draftError,
     saveError,
-  } = composeState;
+  } = compose.state;
   const {
     selectedPostId,
     selectedPost,
-    postDetailReloadKey,
     postEditDraft,
     postDeleteConfirming,
     postDetailLoading,
@@ -752,682 +90,7 @@ function App() {
     postEditError,
     postDeleteError,
     postStatusError,
-  } = postDetailState;
-
-  const abortDraftRequests = useCallback(() => {
-    draftControllerRef.current?.abort();
-    saveControllerRef.current?.abort();
-    draftControllerRef.current = null;
-    saveControllerRef.current = null;
-  }, []);
-
-  const clearDraftState = useCallback(() => {
-    abortDraftRequests();
-    composeDispatch({ type: "CLEAR_DRAFT" });
-  }, [abortDraftRequests]);
-
-  const abortPostDetailRequests = useCallback(() => {
-    postEditControllerRef.current?.abort();
-    postEditControllerRef.current = null;
-    postDeleteControllerRef.current?.abort();
-    postDeleteControllerRef.current = null;
-    postStatusControllerRef.current?.abort();
-    postStatusControllerRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      draftControllerRef.current?.abort();
-      saveControllerRef.current?.abort();
-      postEditControllerRef.current?.abort();
-      postDeleteControllerRef.current?.abort();
-      postStatusControllerRef.current?.abort();
-    };
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    void fetchDraftPosts(
-      {
-        page: postsPage,
-        limit: DRAFT_POSTS_PAGE_SIZE,
-      },
-      controller.signal,
-    )
-      .then(({ posts: items, pagination }) => {
-        if (!controller.signal.aborted) {
-          setPosts(items);
-          setPostsPagination(pagination);
-          if (pagination.page !== postsPage) {
-            setPostsPage(pagination.page);
-          }
-          postDetailDispatch({ type: "SYNC_POST_LIST", posts: items });
-        }
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          setPostsError(
-            getErrorMessage(requestError, "Failed to load saved posts."),
-          );
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setPostsLoading(false);
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [postsPage, postsReloadKey]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    void fetchPublishedPosts(
-      {
-        page: publishedPostsPage,
-        limit: PUBLISHED_POSTS_PAGE_SIZE,
-      },
-      controller.signal,
-    )
-      .then(({ posts: items, pagination }) => {
-        if (!controller.signal.aborted) {
-          setPublishedPosts(items);
-          setPublishedPostsPagination(pagination);
-          if (pagination.page !== publishedPostsPage) {
-            setPublishedPostsPage(pagination.page);
-          }
-        }
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          setPublishedPostsError(
-            getErrorMessage(requestError, "Failed to load published posts."),
-          );
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setPublishedPostsLoading(false);
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [publishedPostsPage, publishedPostsReloadKey]);
-
-  useEffect(() => {
-    if (selectedPostId === null) {
-      return;
-    }
-
-    const controller = new AbortController();
-
-    void fetchPost(selectedPostId, controller.signal)
-      .then((post) => {
-        if (!controller.signal.aborted) {
-          postDetailDispatch({ type: "POST_DETAIL_LOADED", post });
-          setPosts((currentPosts) => upsertPost(currentPosts, post));
-          setPublishedPosts((currentPosts) =>
-            syncPublishedPost(currentPosts, post),
-          );
-        }
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          postDetailDispatch({
-            type: "POST_DETAIL_FAILED",
-            error: getErrorMessage(requestError, "Failed to load post details."),
-          });
-        }
-      })
-
-    return () => {
-      controller.abort();
-    };
-  }, [postDetailReloadKey, selectedPostId]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    void fetchRepositories(controller.signal)
-      .then((items) => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setRepositories(items);
-        const nextRepository = items[0] ?? null;
-
-        abortDraftRequests();
-        composeDispatch({
-          type: "REPOSITORIES_LOADED",
-          repositoryId: nextRepository?.id ?? null,
-        });
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          setError(
-            getErrorMessage(requestError, "Failed to load repositories."),
-          );
-          setRepositories([]);
-          abortDraftRequests();
-          composeDispatch({ type: "REPOSITORIES_FAILED" });
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [abortDraftRequests]);
-
-  const selectedRepository = useMemo(
-    () =>
-      repositories.find((repository) => repository.id === selectedRepositoryId) ??
-      null,
-    [repositories, selectedRepositoryId],
-  );
-
-  const selectedCommits = useMemo(
-    () => commits.filter((commit) => selectedCommitShas.includes(commit.sha)),
-    [commits, selectedCommitShas],
-  );
-
-  const draftPosts = useMemo(
-    () => posts.filter((post) => post.status === "draft"),
-    [posts],
-  );
-
-  function reloadDraftPosts({ resetPage = false } = {}) {
-    setPostsLoading(true);
-    setPostsError(null);
-
-    if (resetPage) {
-      setPostsPage(1);
-    }
-
-    setPostsReloadKey((currentKey) => currentKey + 1);
-  }
-
-  function reloadPublishedPosts({ resetPage = false } = {}) {
-    setPublishedPostsLoading(true);
-    setPublishedPostsError(null);
-
-    if (resetPage) {
-      setPublishedPostsPage(1);
-    }
-
-    setPublishedPostsReloadKey((currentKey) => currentKey + 1);
-  }
-
-  function requestDraftPostsPage(page: number) {
-    setPostsLoading(true);
-    setPostsError(null);
-    setPostsPage(page);
-  }
-
-  function requestPublishedPostsPage(page: number) {
-    setPublishedPostsLoading(true);
-    setPublishedPostsError(null);
-    setPublishedPostsPage(page);
-  }
-
-  function toggleCommit(commit: CommitSummary) {
-    abortDraftRequests();
-    composeDispatch({ type: "TOGGLE_COMMIT", commitSha: commit.sha });
-  }
-
-  function updateDraftField(field: keyof GeneratedDraft, value: string) {
-    composeDispatch({ type: "UPDATE_DRAFT_FIELD", field, value });
-  }
-
-  useEffect(() => {
-    if (selectedRepository === null || !branchLoading) {
-      return;
-    }
-
-    const controller = new AbortController();
-
-    void fetchBranches(
-      selectedRepository.owner,
-      selectedRepository.name,
-      controller.signal,
-    )
-      .then((items) => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        abortDraftRequests();
-        composeDispatch({
-          type: "BRANCHES_LOADED",
-          branches: items,
-          defaultBranchName: selectedRepository.defaultBranch,
-        });
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          abortDraftRequests();
-          composeDispatch({
-            type: "BRANCHES_FAILED",
-            error: getErrorMessage(requestError, "Failed to load branches."),
-          });
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [abortDraftRequests, branchLoading, selectedRepository]);
-
-  useEffect(() => {
-    if (
-      selectedRepository === null ||
-      selectedBranchName === null ||
-      !commitLoading
-    ) {
-      return;
-    }
-
-    const controller = new AbortController();
-
-    void fetchCommits(
-      selectedRepository.owner,
-      selectedRepository.name,
-      selectedBranchName,
-      controller.signal,
-    )
-      .then((items) => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        composeDispatch({ type: "COMMITS_LOADED", commits: items });
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          abortDraftRequests();
-          composeDispatch({
-            type: "COMMITS_FAILED",
-            error: getErrorMessage(requestError, "Failed to load commits."),
-          });
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [abortDraftRequests, commitLoading, selectedBranchName, selectedRepository]);
-
-  function handleGenerateDraft() {
-    if (
-      selectedRepository === null ||
-      selectedBranchName === null ||
-      selectedCommits.length === 0 ||
-      draftLoading ||
-      saveLoading ||
-      draftControllerRef.current !== null ||
-      saveControllerRef.current !== null
-    ) {
-      return;
-    }
-
-    composeDispatch({ type: "START_DRAFT_GENERATION" });
-
-    const controller = new AbortController();
-    draftControllerRef.current = controller;
-
-    void generateBlogDraft(
-      {
-        repository: {
-          owner: selectedRepository.owner,
-          name: selectedRepository.name,
-          fullName: selectedRepository.fullName,
-        },
-        branch: selectedBranchName,
-        commits: selectedCommits,
-      },
-      controller.signal,
-    )
-      .then((draft) => {
-        if (!controller.signal.aborted) {
-          composeDispatch({ type: "DRAFT_GENERATED", draft });
-        }
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          composeDispatch({
-            type: "DRAFT_GENERATION_FAILED",
-            error: getErrorMessage(requestError, "Failed to generate draft."),
-          });
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          draftControllerRef.current = null;
-        }
-      });
-  }
-
-  function handleSaveDraft() {
-    if (
-      selectedRepository === null ||
-      selectedBranchName === null ||
-      selectedCommits.length === 0 ||
-      generatedDraft === null ||
-      draftLoading ||
-      saveLoading ||
-      draftControllerRef.current !== null ||
-      saveControllerRef.current !== null
-    ) {
-      return;
-    }
-
-    composeDispatch({ type: "START_SAVE_DRAFT" });
-
-    const controller = new AbortController();
-    saveControllerRef.current = controller;
-    const targetDraftId = savedDraft?.id ?? null;
-
-    const saveRequest =
-      targetDraftId === null
-        ? createDraftPost(
-            {
-              title: generatedDraft.title,
-              summary: generatedDraft.summary,
-              content: generatedDraft.content,
-              repository: {
-                owner: selectedRepository.owner,
-                name: selectedRepository.name,
-                fullName: selectedRepository.fullName,
-              },
-              branch: selectedBranchName,
-              commits: selectedCommits,
-            },
-            controller.signal,
-          )
-        : updatePost(
-            targetDraftId,
-            {
-              title: generatedDraft.title,
-              summary: generatedDraft.summary,
-              content: generatedDraft.content,
-            },
-            controller.signal,
-          );
-
-    void saveRequest
-      .then((post) => {
-        if (!controller.signal.aborted) {
-          composeDispatch({ type: "DRAFT_SAVED", post });
-          setPosts((currentPosts) => upsertPost(currentPosts, post));
-          setPublishedPosts((currentPosts) =>
-            syncPublishedPost(currentPosts, post),
-          );
-          postDetailDispatch({ type: "SYNC_SELECTED_POST", post });
-          if (post.status === "draft") {
-            reloadDraftPosts({ resetPage: true });
-          }
-          setPostsError(null);
-        }
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          composeDispatch({
-            type: "SAVE_DRAFT_FAILED",
-            error: getErrorMessage(
-              requestError,
-              targetDraftId === null
-                ? "Failed to save draft."
-                : "Failed to update draft.",
-            ),
-          });
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          saveControllerRef.current = null;
-        }
-      });
-  }
-
-  function openPostDetail(post: Post) {
-    abortPostDetailRequests();
-    postDetailDispatch({ type: "OPEN_POST_DETAIL", post });
-    setActiveView("drafts");
-  }
-
-  function retryPostDetail() {
-    if (selectedPostId === null) {
-      return;
-    }
-
-    postDetailDispatch({ type: "RETRY_POST_DETAIL" });
-  }
-
-  function closePostDetail() {
-    abortPostDetailRequests();
-    postDetailDispatch({ type: "CLOSE_POST_DETAIL" });
-  }
-
-  function startPostEdit() {
-    if (
-      selectedPost === null ||
-      postEditSaving ||
-      postDeleting ||
-      postStatusUpdating
-    ) {
-      return;
-    }
-
-    postDetailDispatch({ type: "START_POST_EDIT" });
-  }
-
-  function updatePostEditField(field: keyof PostEditInput, value: string) {
-    postDetailDispatch({ type: "UPDATE_POST_EDIT_FIELD", field, value });
-  }
-
-  function cancelPostEdit() {
-    if (postEditSaving || postDeleting || postStatusUpdating) {
-      return;
-    }
-
-    postDetailDispatch({ type: "CANCEL_POST_EDIT" });
-  }
-
-  function savePostEdit() {
-    if (
-      selectedPost === null ||
-      postEditDraft === null ||
-      postEditSaving ||
-      postDeleting ||
-      postStatusUpdating ||
-      postEditDraft.title.trim() === "" ||
-      postEditDraft.summary.trim() === "" ||
-      postEditDraft.content.trim() === ""
-    ) {
-      return;
-    }
-
-    postDetailDispatch({ type: "START_POST_EDIT_SAVE" });
-
-    const controller = new AbortController();
-    postEditControllerRef.current = controller;
-
-    void updatePost(selectedPost.id, postEditDraft, controller.signal)
-      .then((post) => {
-        if (!controller.signal.aborted) {
-          postDetailDispatch({ type: "POST_EDIT_SAVED", post });
-          setPosts((currentPosts) => upsertPost(currentPosts, post));
-          setPublishedPosts((currentPosts) =>
-            syncPublishedPost(currentPosts, post),
-          );
-          composeDispatch({ type: "SYNC_POST_EDIT", post });
-          if (post.status === "draft") {
-            reloadDraftPosts({ resetPage: true });
-          } else {
-            reloadPublishedPosts({ resetPage: true });
-          }
-        }
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          postDetailDispatch({
-            type: "POST_EDIT_FAILED",
-            error: getErrorMessage(requestError, "Failed to update post."),
-          });
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          postEditControllerRef.current = null;
-        }
-      });
-  }
-
-  function requestPostDelete() {
-    if (
-      selectedPost === null ||
-      postEditSaving ||
-      postDeleting ||
-      postStatusUpdating
-    ) {
-      return;
-    }
-
-    postDetailDispatch({ type: "REQUEST_POST_DELETE" });
-  }
-
-  function cancelPostDelete() {
-    if (postDeleting || postStatusUpdating) {
-      return;
-    }
-
-    postDetailDispatch({ type: "CANCEL_POST_DELETE" });
-  }
-
-  function confirmPostDelete() {
-    if (
-      selectedPost === null ||
-      postDeleting ||
-      postEditSaving ||
-      postStatusUpdating
-    ) {
-      return;
-    }
-
-    postDetailDispatch({ type: "START_POST_DELETE" });
-
-    const targetPostId = selectedPost.id;
-    const controller = new AbortController();
-    postDeleteControllerRef.current = controller;
-
-    void deletePost(targetPostId, controller.signal)
-      .then(() => {
-        if (!controller.signal.aborted) {
-          setPosts((currentPosts) =>
-            currentPosts.filter((post) => post.id !== targetPostId),
-          );
-          setPublishedPosts((currentPosts) =>
-            currentPosts.filter((post) => post.id !== targetPostId),
-          );
-          postDetailDispatch({ type: "POST_DELETE_SUCCEEDED" });
-          composeDispatch({ type: "SYNC_DELETED_POST", postId: targetPostId });
-          reloadDraftPosts();
-          reloadPublishedPosts();
-        }
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          postDetailDispatch({
-            type: "POST_DELETE_FAILED",
-            error: getErrorMessage(requestError, "Failed to delete post."),
-          });
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          postDeleteControllerRef.current = null;
-        }
-      });
-  }
-
-  function publishPost() {
-    if (
-      selectedPost === null ||
-      selectedPost.status === "published" ||
-      postEditSaving ||
-      postDeleting ||
-      postStatusUpdating
-    ) {
-      return;
-    }
-
-    postDetailDispatch({ type: "START_POST_PUBLISH" });
-
-    const controller = new AbortController();
-    postStatusControllerRef.current = controller;
-
-    void updatePostStatus(selectedPost.id, "published", controller.signal)
-      .then((post) => {
-        if (!controller.signal.aborted) {
-          postDetailDispatch({ type: "POST_PUBLISHED", post });
-          setPosts((currentPosts) => upsertPost(currentPosts, post));
-          setPublishedPosts((currentPosts) => upsertPost(currentPosts, post));
-          setActiveView("published");
-          reloadDraftPosts();
-          reloadPublishedPosts({ resetPage: true });
-          setPublishedPostsError(null);
-          composeDispatch({ type: "SYNC_SAVED_DRAFT", post });
-        }
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          postDetailDispatch({
-            type: "POST_PUBLISH_FAILED",
-            error: getErrorMessage(requestError, "Failed to publish post."),
-          });
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          postStatusControllerRef.current = null;
-        }
-      });
-  }
-
-  const pageCopy = {
-    published: {
-      title: "Published posts",
-      description:
-        "Read posts that have already been published inside this service.",
-    },
-    compose: {
-      title: "Write a new post",
-      description:
-        "Select a repository, branch, and commits, then generate and save a draft.",
-    },
-    drafts: {
-      title: "Draft posts",
-      description:
-        "Open a saved draft to edit it, delete it, or publish it inside this service.",
-    },
-  } satisfies Record<AppView, { title: string; description: string }>;
-
-  const navItems: Array<{ view: AppView; label: string }> = [
-    { view: "published", label: "Published" },
-    { view: "compose", label: "New post" },
-    { view: "drafts", label: "Drafts" },
-  ];
+  } = postDetail.state;
 
   return (
     <main className="min-h-screen bg-background text-primary">
@@ -1476,12 +139,12 @@ function App() {
 
         {activeView === "published" ? (
           <PublishedPostList
-            posts={publishedPosts}
-            pagination={publishedPostsPagination}
-            loading={publishedPostsLoading}
-            error={publishedPostsError}
-            onPageChange={requestPublishedPostsPage}
-            onRetry={() => reloadPublishedPosts()}
+            posts={postLists.publishedPosts}
+            pagination={postLists.publishedPostsPagination}
+            loading={postLists.publishedPostsLoading}
+            error={postLists.publishedPostsError}
+            onPageChange={postLists.requestPublishedPostsPage}
+            onRetry={() => postLists.reloadPublishedPosts()}
           />
         ) : null}
 
@@ -1489,113 +152,55 @@ function App() {
           <>
             <div className="grid min-w-0 gap-6 lg:grid-cols-3">
               <RepositorySelector
-                repositories={repositories}
+                repositories={compose.repositories}
                 selectedRepositoryId={selectedRepositoryId}
-                loading={loading}
-                error={error}
-                onSelect={(repository) => {
-                  abortDraftRequests();
-                  composeDispatch({
-                    type: "SELECT_REPOSITORY",
-                    repositoryId: repository.id,
-                  });
-                }}
-                onRetry={() => {
-                  setLoading(true);
-                  setError(null);
-                  clearDraftState();
-
-                  void fetchRepositories()
-                    .then((items) => {
-                      setRepositories(items);
-                      const nextRepository = items[0] ?? null;
-
-                      abortDraftRequests();
-                      composeDispatch({
-                        type: "REPOSITORIES_LOADED",
-                        repositoryId: nextRepository?.id ?? null,
-                      });
-                    })
-                    .catch((requestError: unknown) => {
-                      setError(
-                        getErrorMessage(
-                          requestError,
-                          "Failed to load repositories.",
-                        ),
-                      );
-                      setRepositories([]);
-                      abortDraftRequests();
-                      composeDispatch({ type: "REPOSITORIES_FAILED" });
-                    })
-                    .finally(() => {
-                      setLoading(false);
-                    });
-                }}
+                loading={compose.repositoriesLoading}
+                error={compose.repositoriesError}
+                onSelect={compose.selectRepository}
+                onRetry={compose.retryRepositories}
               />
 
               <BranchSelector
-                repository={selectedRepository}
+                repository={compose.selectedRepository}
                 branches={branches}
                 selectedBranchName={selectedBranchName}
                 loading={branchLoading}
                 error={branchError}
-                disabled={selectedRepository === null}
-                onSelect={(branch) => {
-                  abortDraftRequests();
-                  composeDispatch({
-                    type: "SELECT_BRANCH",
-                    branchName: branch.name,
-                  });
-                }}
-                onRetry={() => {
-                  if (selectedRepository === null) {
-                    return;
-                  }
-
-                  abortDraftRequests();
-                  composeDispatch({ type: "RETRY_BRANCHES" });
-                }}
+                disabled={compose.selectedRepository === null}
+                onSelect={compose.selectBranch}
+                onRetry={compose.retryBranches}
               />
 
               <CommitList
-                repository={selectedRepository}
+                repository={compose.selectedRepository}
                 branchName={selectedBranchName}
                 commits={commits}
                 selectedCommitShas={selectedCommitShas}
                 loading={commitLoading}
                 error={commitError}
                 disabled={
-                  selectedRepository === null || selectedBranchName === null
+                  compose.selectedRepository === null ||
+                  selectedBranchName === null
                 }
-                onToggle={toggleCommit}
-                onRetry={() => {
-                  if (
-                    selectedRepository === null ||
-                    selectedBranchName === null
-                  ) {
-                    return;
-                  }
-
-                  abortDraftRequests();
-                  composeDispatch({ type: "RETRY_COMMITS" });
-                }}
+                onToggle={compose.toggleCommit}
+                onRetry={compose.retryCommits}
               />
             </div>
 
             <DraftEditor
               draft={generatedDraft}
-              repository={selectedRepository}
+              repository={compose.selectedRepository}
               branchName={selectedBranchName}
-              selectedCommits={selectedCommits}
+              selectedCommits={compose.selectedCommits}
               loading={draftLoading}
               error={draftError}
               savedDraft={savedDraft}
               hasUnsavedChanges={hasUnsavedDraftChanges}
               saving={saveLoading}
               saveError={saveError}
-              onGenerate={handleGenerateDraft}
-              onDraftChange={updateDraftField}
-              onSave={handleSaveDraft}
+              onGenerate={compose.generateDraft}
+              onDraftChange={compose.updateDraftField}
+              onSave={compose.saveDraft}
             />
           </>
         ) : null}
@@ -1603,18 +208,21 @@ function App() {
         {activeView === "drafts" ? (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
             <PostList
-              posts={draftPosts}
-              pagination={postsPagination}
+              posts={postLists.draftPosts}
+              pagination={postLists.draftPostsPagination}
               selectedPostId={selectedPostId}
-              loading={postsLoading}
-              error={postsError}
+              loading={postLists.draftPostsLoading}
+              error={postLists.draftPostsError}
               eyebrow="Draft posts"
               title="Edit saved drafts"
               description="Draft posts can be opened for editing, deletion, or publishing."
               emptyMessage="No draft posts yet. Create a new post and save it as a draft."
-              onOpenPost={openPostDetail}
-              onPageChange={requestDraftPostsPage}
-              onRetry={() => reloadDraftPosts()}
+              onOpenPost={(post) => {
+                postDetail.openPostDetail(post);
+                setActiveView("drafts");
+              }}
+              onPageChange={postLists.requestDraftPostsPage}
+              onRetry={() => postLists.reloadDraftPosts()}
             />
 
             <PostDetail
@@ -1629,16 +237,16 @@ function App() {
               deleteError={postDeleteError}
               statusUpdating={postStatusUpdating}
               statusError={postStatusError}
-              onStartEdit={startPostEdit}
-              onEditChange={updatePostEditField}
-              onCancelEdit={cancelPostEdit}
-              onSaveEdit={savePostEdit}
-              onRequestDelete={requestPostDelete}
-              onCancelDelete={cancelPostDelete}
-              onConfirmDelete={confirmPostDelete}
-              onPublish={publishPost}
-              onRetry={retryPostDetail}
-              onClose={closePostDetail}
+              onStartEdit={postDetail.startPostEdit}
+              onEditChange={postDetail.updatePostEditField}
+              onCancelEdit={postDetail.cancelPostEdit}
+              onSaveEdit={postDetail.savePostEdit}
+              onRequestDelete={postDetail.requestPostDelete}
+              onCancelDelete={postDetail.cancelPostDelete}
+              onConfirmDelete={postDetail.confirmPostDelete}
+              onPublish={postDetail.publishPost}
+              onRetry={postDetail.retryPostDetail}
+              onClose={postDetail.closePostDetail}
             />
           </div>
         ) : null}

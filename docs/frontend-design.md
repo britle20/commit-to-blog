@@ -102,6 +102,15 @@ published post list
 - `PaginationControls`: previous and next controls for paginated post lists.
 - `PublishedPostList`: first-screen published post list.
 
+## State and Hooks Organization
+
+- Feature state types and reducers live in `frontend/src/state/`.
+- Feature side effects, request handlers, and mutation handlers live in `frontend/src/hooks/`.
+- `App.tsx` should focus on page-level navigation and composing feature hooks with presentational components.
+- Compose flow state is managed by `compose.state.ts` and `useComposeFlow.ts`.
+- Draft and published post list pagination is managed by `usePostLists.ts`.
+- Post detail edit, delete, and publish state is managed by `post-detail.state.ts` and `usePostDetail.ts`.
+
 ## Interaction Rules
 
 - Branch and commit controls are disabled until a repository is selected.
